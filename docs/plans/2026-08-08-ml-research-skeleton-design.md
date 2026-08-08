@@ -23,7 +23,7 @@ together and stay connected:
 | Experiment ↔ paper link | Auto-generated: a per-paper `generate_assets.py` queries the tracker and writes figures + `.tex` table fragments into `results/`; papers `\input` them. Theory-only papers skip this. |
 | Repo layout | Library + topics: reusable `src/mlr` package, `research/<topic>/` bundles experiments + papers + results. |
 | Experiment tracking | Own SQLite tracker (`mlr.tracking`): we own the schema, zero services, queryable from papers. |
-| Tooling | `uv` + `pyproject.toml`, pytest, latexmk for papers. |
+| Tooling | Anaconda env `ml-research` + pip-installable `pyproject.toml`, pytest, MiKTeX `pdflatex` (two passes) for papers. |
 
 ## Layout
 

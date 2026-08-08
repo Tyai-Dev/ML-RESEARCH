@@ -1,0 +1,28 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Tracking database (metadata lives here, regenerate by re-running experiments)
+tracking.db
+
+# Dataset blobs — manifests are committed, data is not
+datasets/raw/
+datasets/processed/
+
+# Generated paper assets (regenerate with `mlr paper`)
+research/*/results/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.fls
+*.fdb_latexmk
+*.synctex.gz
+*.toc
+*.bbl
+*.blg
+research/**/*.pdf

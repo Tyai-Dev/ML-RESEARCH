@@ -1,0 +1,73 @@
+\documentclass[11pt]{article}
+\input{../../../papers-common/preamble.tex}
+
+\title{The Linear Discriminator as a Bernoulli Hypothesis Class}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We define the linear discriminator as a hypothesis class of conditional
+Bernoulli distributions and show that maximum-likelihood estimation over this
+class is exactly minimization of the logistic loss. This note is the
+theoretical companion to the implementation in
+\texttt{mlr.models.pure.linear\_discriminator}.
+\end{abstract}
+
+\section{The hypothesis class}
+
+Let $\mathcal{X} = \R^d$ and $\mathcal{Y} = \{0, 1\}$. For a weight vector
+$w \in \R^d$ and bias $b \in \R$, define the sigmoid
+$\sigma(z) = (1 + e^{-z})^{-1}$ and the hypothesis
+\begin{equation}
+  h_{w,b}(x) \;=\; \sigma\!\left(\ip{w}{x} + b\right) \in (0, 1).
+\end{equation}
+
+\begin{definition}[Bernoulli hypothesis class]
+The linear discriminator class is
+$\mathcal{H} = \{\, h_{w,b} : w \in \R^d,\; b \in \R \,\}$, where each
+hypothesis is read as a conditional distribution
+$\Prob(Y = 1 \mid X = x) = h_{w,b}(x)$, i.e.\
+$Y \mid X = x \sim \mathrm{Bernoulli}\!\left(h_{w,b}(x)\right)$.
+\end{definition}
+
+\section{Maximum likelihood is logistic-loss minimization}
+
+\begin{proposition}
+Given a sample $S = \{(x_i, y_i)\}_{i=1}^n$, the maximum-likelihood
+estimator over $\mathcal{H}$ coincides with the minimizer of the empirical
+logistic loss
+\begin{equation}
+  \widehat{L}_S(w, b) \;=\; -\frac{1}{n} \sum_{i=1}^{n}
+    \Big[ y_i \log h_{w,b}(x_i) + (1 - y_i) \log\!\big(1 - h_{w,b}(x_i)\big) \Big].
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+The conditional likelihood of the sample under $h_{w,b}$ is
+$\prod_i h_{w,b}(x_i)^{y_i} (1 - h_{w,b}(x_i))^{1 - y_i}$, the Bernoulli
+probability mass of each label. Taking $-\frac{1}{n}\log(\cdot)$ is a strictly
+decreasing transformation, so maximizing the likelihood is equivalent to
+minimizing $\widehat{L}_S$.
+\end{proof}
+
+\begin{remark}[Convexity]
+Writing $p_i = \sigma(z_i)$ with $z_i = \ip{w}{x_i} + b$, each summand is
+$\log(1 + e^{z_i}) - y_i z_i$, a convex function of $z_i$ composed with an
+affine map of $(w, b)$; hence $\widehat{L}_S$ is convex and full-batch
+gradient descent converges to a global minimizer for suitable step sizes.
+The gradient takes the simple form
+$\nabla_w \widehat{L}_S = \frac{1}{n} \sum_i (p_i - y_i)\, x_i$, which is
+precisely the update implemented in the library.
+\end{remark}
+
+\begin{remark}[What the class cannot do]
+Decision boundaries in $\mathcal{H}$ are hyperplanes
+$\{x : \ip{w}{x} + b = 0\}$. Data that is not linearly separable in feature
+space bounds the achievable accuracy regardless of training; the companion
+writeup (paper 02) measures this empirically by varying class separation.
+\end{remark}
+
+\end{document}

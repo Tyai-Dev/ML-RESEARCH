@@ -1,0 +1,15 @@
+name: wide-separation
+topic: linear-discriminator
+model: linear-discriminator
+model_params:
+  lr: 0.5
+  epochs: 300
+  seed: 0
+dataset: two-gaussians
+dataset_params:
+  n: 1000
+  dim: 2
+  sep: 4.0
+  seed: 42
+test_size: 0.2
+seed: 42

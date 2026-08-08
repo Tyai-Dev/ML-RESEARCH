@@ -1,0 +1,52 @@
+\documentclass[11pt]{article}
+\input{../../../papers-common/preamble.tex}
+
+\title{Loss-Based Training of the Linear Discriminator:\\ Experimental Writeup}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We train the pure-Python linear discriminator of paper~01 on synthetic
+two-Gaussian data by full-batch gradient descent on the logistic loss. All
+numbers and figures in this document are generated from the experiment
+tracker (\texttt{tracking.db}) by \texttt{generate\_assets.py}; nothing is
+typed in by hand. To reproduce: run the configs under
+\texttt{experiments/}, then \texttt{mlr paper} on this directory.
+\end{abstract}
+
+\section{Setup}
+
+The dataset is two isotropic Gaussians in $\R^2$ with unit variance, centered
+$\pm\,\mathrm{sep}/2$ apart on the first coordinate, $n = 1000$ points,
+balanced classes, $20\%$ held out for testing. The model is trained with
+full-batch gradient descent (learning rate $0.5$, $300$ epochs) on the
+logistic loss, as derived in paper~01.
+
+\section{Results}
+
+\begin{table}[h]
+  \centering
+  \input{../../results/tables/accuracy.tex}
+  \caption{Test accuracy per experiment, pulled from the latest finished run
+  of each config in the tracker.}
+  \label{tab:accuracy}
+\end{table}
+
+Wider class separation makes the problem easier, and test accuracy rises
+accordingly (Table~\ref{tab:accuracy}); the residual error at small
+separation is the irreducible overlap of the two Gaussians, which no
+hypothesis in the linear class can remove.
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=0.75\textwidth]{../../results/figures/loss-curve.pdf}
+  \caption{Training loss per epoch for each experiment. The easier
+  (wider-separation) problem drives the logistic loss lower, consistent with
+  the likelihood interpretation of paper~01.}
+  \label{fig:loss}
+\end{figure}
+
+\end{document}
