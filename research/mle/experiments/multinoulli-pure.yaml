@@ -1,0 +1,10 @@
+name: multinoulli-pure
+topic: mle
+model: multinoulli-mle
+dataset: multinoulli-samples
+dataset_params:
+  n: 5000
+  probs: [0.5, 0.3, 0.2]
+  seed: 7
+test_size: 0.2
+seed: 42

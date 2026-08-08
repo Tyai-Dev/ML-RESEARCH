@@ -1,0 +1,11 @@
+name: gaussian-pure
+topic: mle
+model: gaussian-mle
+dataset: gaussian-samples
+dataset_params:
+  n: 5000
+  mu: 2.0
+  sigma: 1.5
+  seed: 7
+test_size: 0.2
+seed: 42

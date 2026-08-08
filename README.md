@@ -100,6 +100,16 @@ Pure models use the from-scratch NumPy optimizers in
 `mlr/training/optimizers.py`; torch models map the same names onto
 `torch.optim`, so a config works unchanged with either model family.
 
+## Example: maximum likelihood
+
+The `research/mle/` topic pairs a theory paper (the MLE principle with
+closed-form derivations) with six tracked experiments: Bernoulli /
+Multinoulli / Gaussian estimation, each implemented twice — analytic
+formulas in `mlr.models.pure.mle` and gradient ascent on the log-likelihood
+in `mlr.models.torch.mle`. The paper's results table shows both recover the
+same estimates, and unsupervised runs are scored by held-out negative
+log-likelihood (`test_nll`, so `mlr best mle --metric test_nll --mode min`).
+
 ## Example: linear discriminator
 
 The `research/linear-discriminator/` topic is the reference vertical slice:

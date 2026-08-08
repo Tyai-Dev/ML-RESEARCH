@@ -1,0 +1,15 @@
+name: gaussian-torch
+topic: mle
+model: gaussian-mle-torch
+dataset: gaussian-samples
+dataset_params:
+  n: 5000
+  mu: 2.0
+  sigma: 1.5
+  seed: 7
+training:
+  optimizer: adam
+  lr: 0.05
+  epochs: 500
+test_size: 0.2
+seed: 42

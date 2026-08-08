@@ -64,7 +64,7 @@ def do_run(config_path: Path, db: str | Path) -> int:
     )
 
     config = yaml.safe_load(Path(config_path).read_text())
-    epochs = config.get("training", {}).get("epochs", 200)
+    epochs = config.get("training", {}).get("epochs")  # None = closed-form/unknown
     console.print(
         f"[bold]{config['topic']}/{config['name']}[/bold]  "
         f"model={config['model']}  dataset={config['dataset']}  "
@@ -85,18 +85,18 @@ def do_run(config_path: Path, db: str | Path) -> int:
                 progress.update(
                     task,
                     advance=1,
-                    description=(
-                        f"loss={metrics.get('train_loss', float('nan')):.4f}  "
-                        f"acc={metrics.get('train_accuracy', float('nan')):.3f}"
-                    ),
+                    description="  ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
                 )
 
             run_id = run_experiment(config, tracker, on_epoch=show)
-        test_acc = tracker.last_metric(run_id, "test_accuracy")
-    acc_s = "-" if test_acc is None else f"{test_acc:.4f}"
+        final = {
+            key: value
+            for key in ("test_accuracy", "test_nll")
+            if (value := tracker.last_metric(run_id, key)) is not None
+        }
+    final_s = "  ".join(f"{k}={v:.4f}" for k, v in final.items()) or "-"
     console.print(
-        f"[green]run {run_id}[/green] ({config['name']}) finished; "
-        f"test_accuracy={acc_s}"
+        f"[green]run {run_id}[/green] ({config['name']}) finished; {final_s}"
     )
     return run_id
 

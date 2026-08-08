@@ -1,0 +1,14 @@
+name: multinoulli-torch
+topic: mle
+model: multinoulli-mle-torch
+dataset: multinoulli-samples
+dataset_params:
+  n: 5000
+  probs: [0.5, 0.3, 0.2]
+  seed: 7
+training:
+  optimizer: adam
+  lr: 0.1
+  epochs: 400
+test_size: 0.2
+seed: 42

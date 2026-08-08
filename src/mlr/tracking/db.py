@@ -145,6 +145,12 @@ class Tracker:
                 best = {**run, "value": value}
         return best
 
+    def metric_keys(self, run_id: int) -> list[str]:
+        rows = self._conn.execute(
+            "SELECT DISTINCT key FROM metrics WHERE run_id = ? ORDER BY key", (run_id,)
+        )
+        return [r["key"] for r in rows]
+
     def metric_history(self, run_id: int, key: str) -> list[tuple[int | None, float]]:
         rows = self._conn.execute(
             "SELECT step, value FROM metrics WHERE run_id = ? AND key = ? ORDER BY rowid",

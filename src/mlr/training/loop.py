@@ -52,8 +52,17 @@ def run_experiment(config: dict, tracker: Tracker, on_epoch=None) -> int:
     test_size = config.get("test_size", 0.2)
     seed = config.get("seed", 0)
 
-    X, y = get_dataset(dataset_name)(**dataset_params)
-    X_train, y_train, X_test, y_test = train_test_split(X, y, test_size, seed)
+    data = get_dataset(dataset_name)(**dataset_params)
+    if isinstance(data, tuple):  # supervised: (X, y)
+        X, y = data
+        X_train, y_train, X_test, y_test = train_test_split(X, y, test_size, seed)
+    else:  # unsupervised: samples only (density/parameter estimation)
+        X, y = data, None
+        rng = np.random.default_rng(seed)
+        perm = rng.permutation(len(X))
+        n_test = int(round(len(X) * test_size))
+        X_train, X_test = X[perm[n_test:]], X[perm[:n_test]]
+        y_train = y_test = None
     model = get_model(model_name)(**model_params)
 
     run_id = tracker.start_run(name, topic, model_name, dataset_name)
@@ -75,7 +84,13 @@ def run_experiment(config: dict, tracker: Tracker, on_epoch=None) -> int:
                 on_epoch(epoch, metrics)
 
         model.fit(X_train, y_train, on_epoch=log_epoch, **training)
-        tracker.log_metric(run_id, "test_accuracy", model.accuracy(X_test, y_test))
+        if y_test is not None:
+            tracker.log_metric(run_id, "test_accuracy", model.accuracy(X_test, y_test))
+        else:
+            tracker.log_metric(run_id, "test_nll", model.nll(X_test))
+        if hasattr(model, "estimates"):
+            for key, value in model.estimates().items():
+                tracker.log_metric(run_id, f"estimate.{key}", value)
         tracker.finish_run(run_id)
     except Exception:
         tracker.finish_run(run_id, status="failed")
