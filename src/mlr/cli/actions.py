@@ -195,3 +195,35 @@ def do_distributions() -> list[str]:
     from mlr.distributions import list_distributions
 
     return list_distributions()
+
+
+def do_study(distribution: str, n_samples: int, n_experiments: int, seed: int = 0):
+    from mlr.study import run_study
+
+    result = run_study(distribution, n_samples, n_experiments, seed=seed)
+    true_s = ", ".join(f"{k}={v:g}" for k, v in result.true_params.items())
+    console.print(
+        f"Creating [bold]{n_samples}[/bold] samples of the "
+        f"[bold]{distribution}[/bold] distribution ({true_s}) "
+        f"x [bold]{n_experiments}[/bold] experiments."
+    )
+    console.print(f"Running MLE: [cyan]{result.formula}[/cyan]")
+
+    table = Table(title=f"MLE study — {distribution} (mean NLL {result.mean_nll:.4f})")
+    for col in ("param", "true", "mean estimate", "observed Var", "theoretical Var"):
+        table.add_column(col, justify="right")
+    for key in result.mean_estimate:
+        table.add_row(
+            key,
+            f"{result.true_params[key]:.4f}",
+            f"{result.mean_estimate[key]:.4f}",
+            f"{result.observed_variance[key]:.2e}",
+            f"{result.theoretical_variance[key]:.2e}",
+        )
+    console.print(table)
+    if n_experiments == 1:
+        console.print(
+            "[dim]one experiment has no observed variance; "
+            "run more to see the sampling distribution[/dim]"
+        )
+    return result

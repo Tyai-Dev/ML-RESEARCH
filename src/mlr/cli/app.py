@@ -98,6 +98,52 @@ def distributions() -> None:
 
 
 @app.command()
+def study(
+    distribution: str = typer.Argument(None, help="Distribution (prompted if omitted)."),
+    samples: int = typer.Option(None, "--samples", "-n", help="Samples per experiment."),
+    experiments: int = typer.Option(None, "--experiments", "-k", help="Number of experiments."),
+    seed: int = typer.Option(0, help="Base seed; experiment i uses seed+i."),
+) -> None:
+    """Repeated-sampling closed-form MLE study: estimates + sampling variance."""
+    import sys
+
+    from mlr.study import STUDY_SPECS
+
+    interactive = sys.stdin.isatty() and (
+        distribution is None or samples is None or experiments is None
+    )
+    if interactive:
+        import questionary
+
+        if distribution is None:
+            distribution = questionary.select(
+                "Distribution:", sorted(STUDY_SPECS)
+            ).ask()
+            if distribution is None:
+                raise typer.Exit(1)
+        if samples is None:
+            choice = questionary.select(
+                "Number of samples per experiment:", ["10", "100", "1000", "other"]
+            ).ask()
+            if choice is None:
+                raise typer.Exit(1)
+            if choice == "other":
+                choice = questionary.text("Samples:", default="1000").ask()
+            samples = int(choice)
+        if experiments is None:
+            experiments = int(
+                questionary.text("Number of experiments to run:", default="100").ask()
+                or 100
+            )
+    if distribution is None or samples is None or experiments is None:
+        console.print(
+            "non-interactive use needs: mlr study <distribution> -n <samples> -k <experiments>"
+        )
+        raise typer.Exit(1)
+    actions.do_study(distribution, samples, experiments, seed=seed)
+
+
+@app.command()
 def topics() -> None:
     """List research topics."""
     root = actions.repo_root()

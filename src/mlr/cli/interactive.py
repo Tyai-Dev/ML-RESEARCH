@@ -61,6 +61,25 @@ def _best_run(root: Path) -> None:
         actions.do_best(topic, "test_accuracy", "max", DB)
 
 
+def _mle_study(root: Path) -> None:
+    from mlr.study import STUDY_SPECS
+
+    distribution = _select("Distribution:", sorted(STUDY_SPECS))
+    if distribution is None:
+        return
+    choice = _select("Number of samples per experiment:", ["10", "100", "1000", "other"])
+    if choice is None:
+        return
+    if choice == "other":
+        choice = questionary.text("Samples:", default="1000").ask()
+        if not choice:
+            return
+    experiments = questionary.text("Number of experiments to run:", default="100").ask()
+    if not experiments:
+        return
+    actions.do_study(distribution, int(choice), int(experiments))
+
+
 def _new_something(root: Path) -> None:
     kind = _select("Create a new:", ["topic", "experiment", "model", "paper"])
     if kind is None:
@@ -105,6 +124,7 @@ def _new_something(root: Path) -> None:
 
 _MENU = {
     "Run an experiment": _run_experiment,
+    "MLE study (sampling distribution of the estimator)": _mle_study,
     "Show tracked runs": _show_runs,
     "Best run of a topic": _best_run,
     "Build a paper (assets + PDF)": _build_paper,

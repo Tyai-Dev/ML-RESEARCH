@@ -58,6 +58,9 @@ mlr topics                             # research topics + counts
 mlr models                             # registered models
 mlr datasets                           # registered datasets
 mlr optimizers                         # available training optimizers
+mlr distributions                      # registered distributions
+mlr study                              # repeated-sampling MLE study (prompts),
+                                       #   or: mlr study bernoulli -n 100 -k 1000
 
 # Rebuild a paper: regenerates its figures/tables from tracking.db,
 # then compiles with pdflatex (two passes)

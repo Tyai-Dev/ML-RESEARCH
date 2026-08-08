@@ -68,6 +68,12 @@ class Bernoulli:
     """x in {0,1}, P(x=1) = p."""
 
     dtype = "float"
+    formula = "p_hat = x_bar (sample mean)"
+
+    def estimator_variance(self, params: dict, n: int) -> dict[str, float]:
+        """Theoretical Var of the MLE at true params: Var(p_hat) = p(1-p)/n."""
+        p = params["p"]
+        return {"p": p * (1 - p) / n}
 
     def nll(self, params: dict, X) -> float:
         X = np.asarray(X, dtype=float).ravel()
@@ -99,9 +105,16 @@ class Multinoulli:
     """x in {0..k-1}, P(x=j) = p_j with sum p = 1."""
 
     dtype = "int"
+    formula = "p_hat_k = n_k / n (empirical frequencies)"
 
     def __init__(self, k: int | None = None):
         self.k = k
+
+    def estimator_variance(self, params: dict, n: int) -> dict[str, float]:
+        """Marginally each count is binomial: Var(p_hat_k) = p_k(1-p_k)/n."""
+        return {
+            f"p{j}": p * (1 - p) / n for j, p in enumerate(np.asarray(params["p"]))
+        }
 
     def _k(self, X) -> int:
         return self.k if self.k is not None else int(np.asarray(X).max()) + 1
@@ -146,6 +159,12 @@ class Gaussian:
     """x real, N(mu, sigma^2). The MLE variance is the biased 1/n one."""
 
     dtype = "float"
+    formula = "mu_hat = x_bar,  sigma2_hat = (1/n) sum (x - x_bar)^2"
+
+    def estimator_variance(self, params: dict, n: int) -> dict[str, float]:
+        """Var(mu_hat) = sigma^2/n; asymptotically Var(sigma_hat) = sigma^2/(2n)."""
+        var = params["sigma"] ** 2
+        return {"mu": var / n, "sigma": var / (2 * n)}
 
     def nll(self, params: dict, X) -> float:
         X = np.asarray(X, dtype=float).ravel()
