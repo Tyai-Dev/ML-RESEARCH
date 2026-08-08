@@ -55,9 +55,43 @@ def list_papers(root: Path, topic: str) -> list[Path]:
 
 
 def do_run(config_path: Path, db: str | Path) -> int:
+    from rich.progress import (
+        BarColumn,
+        Progress,
+        TaskProgressColumn,
+        TextColumn,
+        TimeElapsedColumn,
+    )
+
     config = yaml.safe_load(Path(config_path).read_text())
+    epochs = config.get("training", {}).get("epochs", 200)
+    console.print(
+        f"[bold]{config['topic']}/{config['name']}[/bold]  "
+        f"model={config['model']}  dataset={config['dataset']}  "
+        f"training={config.get('training', {})}"
+    )
     with Tracker(db) as tracker:
-        run_id = run_experiment(config, tracker)
+        with Progress(
+            TextColumn("epoch {task.completed}/{task.total}"),
+            BarColumn(),
+            TaskProgressColumn(),
+            TimeElapsedColumn(),
+            TextColumn("{task.description}"),
+            console=console,
+        ) as progress:
+            task = progress.add_task("starting...", total=epochs)
+
+            def show(epoch: int, metrics: dict) -> None:
+                progress.update(
+                    task,
+                    advance=1,
+                    description=(
+                        f"loss={metrics.get('train_loss', float('nan')):.4f}  "
+                        f"acc={metrics.get('train_accuracy', float('nan')):.3f}"
+                    ),
+                )
+
+            run_id = run_experiment(config, tracker, on_epoch=show)
         test_acc = tracker.last_metric(run_id, "test_accuracy")
     acc_s = "-" if test_acc is None else f"{test_acc:.4f}"
     console.print(
@@ -134,3 +168,9 @@ def do_datasets() -> list[str]:
     from mlr.data import list_datasets
 
     return list_datasets()
+
+
+def do_optimizers() -> list[str]:
+    from mlr.training.optimizers import list_optimizers
+
+    return list_optimizers()

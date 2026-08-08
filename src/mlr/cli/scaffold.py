@@ -14,6 +14,11 @@ model: {model}
 model_params: {{}}
 dataset: {dataset}
 dataset_params: {{}}
+training:
+  optimizer: sgd        # see `mlr optimizers`
+  lr: 0.1
+  epochs: 200
+  batch_size: null      # null = full-batch GD; an int = mini-batch SGD
 test_size: 0.2
 seed: 42
 """

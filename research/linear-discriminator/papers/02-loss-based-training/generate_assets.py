@@ -22,11 +22,12 @@ PAPER_DIR = Path(__file__).resolve().parent
 TOPIC_DIR = PAPER_DIR.parents[1]  # research/linear-discriminator
 REPO_ROOT = TOPIC_DIR.parents[1]  # repo root, where tracking.db lives
 
-# Validated categorical palette slots 1-2 (see dataviz reference palette);
+# Validated categorical palette slots 1-3 (see dataviz reference palette);
 # linestyle is the secondary encoding so identity survives grayscale print.
 SERIES_STYLE = [
     {"color": "#2a78d6", "linestyle": "-"},
     {"color": "#eb6834", "linestyle": "--"},
+    {"color": "#1baf7a", "linestyle": ":"},
 ]
 INK_MUTED = "#898781"
 GRIDLINE = "#e1e0d9"

@@ -1,18 +1,18 @@
-name: wide-separation
+name: torch-adam
 topic: linear-discriminator
-model: linear-discriminator
+model: linear-discriminator-torch
 model_params:
   seed: 0
 dataset: two-gaussians
 dataset_params:
   n: 1000
   dim: 2
-  sep: 4.0
+  sep: 2.0
   seed: 42
 training:
-  optimizer: sgd
-  lr: 0.5
+  optimizer: adam
+  lr: 0.05
   epochs: 300
-  batch_size: null
+  batch_size: 32
 test_size: 0.2
 seed: 42

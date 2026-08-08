@@ -57,6 +57,7 @@ mlr best linear-discriminator          # best run by test_accuracy
 mlr topics                             # research topics + counts
 mlr models                             # registered models
 mlr datasets                           # registered datasets
+mlr optimizers                         # available training optimizers
 
 # Rebuild a paper: regenerates its figures/tables from tracking.db,
 # then compiles with pdflatex (two passes)
@@ -82,10 +83,28 @@ mlr new paper my-idea first-note --assets
   `../../results/tables/` and figures to `../../results/figures/`, pulling
   numbers only from the tracker so the paper can never disagree with the runs.
 
+## Training configuration
+
+Every experiment config has a `training` section; `mlr run` shows a live
+epoch/loss/accuracy progress bar while it executes:
+
+```yaml
+training:
+  optimizer: adam     # sgd | momentum | adam | rmsprop | adagrad
+  lr: 0.05            # extra keys (momentum, beta1, ...) go to the optimizer
+  epochs: 300
+  batch_size: 32      # null = full-batch GD; an int = mini-batch SGD
+```
+
+Pure models use the from-scratch NumPy optimizers in
+`mlr/training/optimizers.py`; torch models map the same names onto
+`torch.optim`, so a config works unchanged with either model family.
+
 ## Example: linear discriminator
 
 The `research/linear-discriminator/` topic is the reference vertical slice:
-a pure-NumPy logistic model (`mlr.models.pure.linear_discriminator`), two
-experiment configs, a theory note deriving the Bernoulli/logistic-loss
-equivalence (paper 01), and a writeup whose accuracy table and loss curves
-are generated from real tracked runs (paper 02).
+a pure-NumPy logistic model and its PyTorch twin
+(`linear-discriminator` / `linear-discriminator-torch`), three experiment
+configs, a theory note deriving the Bernoulli/logistic-loss equivalence
+(paper 01), and a writeup whose accuracy table and loss curves are
+generated from real tracked runs (paper 02).

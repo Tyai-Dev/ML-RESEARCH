@@ -2,8 +2,6 @@ name: baseline
 topic: linear-discriminator
 model: linear-discriminator
 model_params:
-  lr: 0.5
-  epochs: 300
   seed: 0
 dataset: two-gaussians
 dataset_params:
@@ -11,5 +9,10 @@ dataset_params:
   dim: 2
   sep: 2.0
   seed: 42
+training:
+  optimizer: sgd
+  lr: 0.5
+  epochs: 300
+  batch_size: null
 test_size: 0.2
 seed: 42

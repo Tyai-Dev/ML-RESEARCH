@@ -6,26 +6,29 @@ CONFIG = {
     "name": "e2e",
     "topic": "linear-discriminator",
     "model": "linear-discriminator",
-    "model_params": {"lr": 0.5, "epochs": 100},
+    "model_params": {"seed": 0},
     "dataset": "two-gaussians",
     "dataset_params": {"n": 600, "sep": 3.0, "seed": 42},
+    "training": {"optimizer": "adam", "lr": 0.05, "epochs": 100, "batch_size": 64},
     "test_size": 0.2,
     "seed": 42,
 }
 
 
 def test_run_experiment_logs_everything(tmp_path):
+    epochs_seen = []
     with Tracker(tmp_path / "t.db") as tr:
-        run_id = run_experiment(CONFIG, tr)
+        run_id = run_experiment(CONFIG, tr, on_epoch=lambda e, m: epochs_seen.append(e))
 
         (run,) = tr.list_runs("linear-discriminator")
         assert run["id"] == run_id and run["status"] == "finished"
 
         params = tr.get_params(run_id)
-        assert params["model.lr"] == "0.5"
+        assert params["training.optimizer"] == "adam"
         assert params["dataset.n"] == "600"
 
         assert len(tr.metric_history(run_id, "train_loss")) == 100
+        assert len(epochs_seen) == 100
         assert tr.last_metric(run_id, "test_accuracy") > 0.9
 
 

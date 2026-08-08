@@ -84,6 +84,13 @@ def datasets() -> None:
 
 
 @app.command()
+def optimizers() -> None:
+    """List available training optimizers."""
+    for name in actions.do_optimizers():
+        console.print(f"- {name}")
+
+
+@app.command()
 def topics() -> None:
     """List research topics."""
     root = actions.repo_root()
