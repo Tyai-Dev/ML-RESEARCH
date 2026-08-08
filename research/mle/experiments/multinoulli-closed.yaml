@@ -1,6 +1,9 @@
-name: multinoulli-pure
+name: multinoulli-closed
 topic: mle
-model: multinoulli-mle
+model: mle
+model_params:
+  distribution: multinoulli
+  method: mle
 dataset: multinoulli-samples
 dataset_params:
   n: 5000

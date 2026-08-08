@@ -1,6 +1,10 @@
-name: multinoulli-torch
+name: multinoulli-gradient
 topic: mle
-model: multinoulli-mle-torch
+model: mle
+model_params:
+  distribution: multinoulli
+  method: gradient
+  backend: torch
 dataset: multinoulli-samples
 dataset_params:
   n: 5000

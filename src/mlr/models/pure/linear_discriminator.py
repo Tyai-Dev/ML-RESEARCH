@@ -83,7 +83,9 @@ class LinearDiscriminator:
     def predict_proba(self, X: np.ndarray) -> np.ndarray:
         if self.params is None:
             raise RuntimeError("model is not fitted")
-        return _sigmoid(np.asarray(X, dtype=float) @ self.params["w"] + self.params["b"][0])
+        return _sigmoid(
+            np.asarray(X, dtype=float) @ self.params["w"] + self.params["b"][0]
+        )
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return (self.predict_proba(X) >= 0.5).astype(int)

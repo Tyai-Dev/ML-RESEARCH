@@ -1,6 +1,10 @@
-name: gaussian-torch
+name: gaussian-gradient
 topic: mle
-model: gaussian-mle-torch
+model: mle
+model_params:
+  distribution: gaussian
+  method: gradient
+  backend: pure       # NumPy optimizers + hand-derived gradients
 dataset: gaussian-samples
 dataset_params:
   n: 5000

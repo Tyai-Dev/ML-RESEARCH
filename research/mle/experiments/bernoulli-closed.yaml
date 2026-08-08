@@ -1,14 +1,13 @@
-name: bernoulli-torch
+name: bernoulli-closed
 topic: mle
-model: bernoulli-mle-torch
+model: mle
+model_params:
+  distribution: bernoulli
+  method: mle
 dataset: bernoulli-samples
 dataset_params:
   n: 5000
   p: 0.3
   seed: 7
-training:
-  optimizer: adam
-  lr: 0.1
-  epochs: 300
 test_size: 0.2
 seed: 42

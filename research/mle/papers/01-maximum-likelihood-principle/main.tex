@@ -117,13 +117,18 @@ consistent estimator does better.
 
 \section{Closed form versus gradient ascent}
 
-The library implements each family twice. The \emph{pure} estimators
-(\texttt{bernoulli-mle}, \texttt{multinoulli-mle}, \texttt{gaussian-mle})
-apply the formulas above. The \emph{torch} estimators
-(\texttt{*-mle-torch}) minimize the NLL~\eqref{eq:nll} by gradient descent
-from an uninformed initialization. When the log-likelihood is concave in the
-chosen parameterization — true for all three families here — gradient
-descent must find the same optimum, so agreement between the two columns of
+In the library a distribution is one class (\texttt{mlr.distributions})
+owning exactly the objects of this note: its density's NLL~\eqref{eq:nll},
+the closed-form estimate \texttt{.mle()}, and an unconstrained
+parameterization of the NLL for numerical search. A single model
+(\texttt{model:\ mle}) then chooses the route: \texttt{method:\ mle}
+evaluates the formula, while \texttt{method:\ gradient} feeds the NLL to an
+optimizer — through hand-derived NumPy gradients
+(\texttt{backend:\ pure}, verified against finite differences in the test
+suite) or through autograd (\texttt{backend:\ torch}). When the
+log-likelihood is concave in the chosen parameterization — true for all
+three families here — every route must find the same optimum, so agreement
+between the \texttt{-closed} and \texttt{-gradient} rows of
 Table~\ref{tab:estimates} is a machine check of the derivations.
 
 \begin{table}[h]
@@ -131,9 +136,11 @@ Table~\ref{tab:estimates} is a machine check of the derivations.
   \small
   \input{../../results/tables/mle-estimates.tex}
   \caption{Latest tracked run per experiment
-  (\texttt{research/mle/experiments/}). Pure rows are closed-form; torch
-  rows are Adam on the NLL. Held-out NLL and parameter estimates agree to
-  the reported precision, and both recover the generating parameters.}
+  (\texttt{research/mle/experiments/}). \texttt{-closed} rows evaluate the
+  analytic formulas; \texttt{-gradient} rows run Adam on the NLL (torch
+  autograd for Bernoulli/Multinoulli, pure NumPy gradients for the
+  Gaussian). Held-out NLL and parameter estimates agree to the reported
+  precision, and all recover the generating parameters.}
   \label{tab:estimates}
 \end{table}
 

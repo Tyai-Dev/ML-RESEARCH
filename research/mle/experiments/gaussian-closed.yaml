@@ -1,6 +1,9 @@
-name: gaussian-pure
+name: gaussian-closed
 topic: mle
-model: gaussian-mle
+model: mle
+model_params:
+  distribution: gaussian
+  method: mle
 dataset: gaussian-samples
 dataset_params:
   n: 5000

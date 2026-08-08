@@ -174,3 +174,9 @@ def do_optimizers() -> list[str]:
     from mlr.training.optimizers import list_optimizers
 
     return list_optimizers()
+
+
+def do_distributions() -> list[str]:
+    from mlr.distributions import list_distributions
+
+    return list_distributions()

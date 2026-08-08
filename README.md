@@ -103,12 +103,22 @@ Pure models use the from-scratch NumPy optimizers in
 ## Example: maximum likelihood
 
 The `research/mle/` topic pairs a theory paper (the MLE principle with
-closed-form derivations) with six tracked experiments: Bernoulli /
-Multinoulli / Gaussian estimation, each implemented twice — analytic
-formulas in `mlr.models.pure.mle` and gradient ascent on the log-likelihood
-in `mlr.models.torch.mle`. The paper's results table shows both recover the
-same estimates, and unsupervised runs are scored by held-out negative
-log-likelihood (`test_nll`, so `mlr best mle --metric test_nll --mode min`).
+closed-form derivations) with six tracked experiments over Bernoulli /
+Multinoulli / Gaussian samples. Distributions live in `mlr.distributions` —
+each owns its `nll`, its closed-form `.mle()`, and an unconstrained
+parameterization with hand-derived gradients. One model composes them:
+
+```yaml
+model: mle
+model_params:
+  distribution: gaussian   # see `mlr distributions`
+  method: gradient         # mle = closed form | gradient = optimize the nll
+  backend: pure            # pure (NumPy grads) | torch (autograd)
+```
+
+The paper's results table shows every route recovers the same estimates.
+Unsupervised runs are scored by held-out negative log-likelihood
+(`test_nll`, so `mlr best mle --metric test_nll --mode min`).
 
 ## Example: linear discriminator
 

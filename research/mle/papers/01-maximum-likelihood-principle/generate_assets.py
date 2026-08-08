@@ -74,9 +74,9 @@ def write_table(tracker: Tracker, runs: dict[str, dict], out: Path) -> None:
 
 
 def write_gaussian_figure(tracker: Tracker, runs: dict[str, dict], out: Path) -> None:
-    pure, tch = runs.get("gaussian-pure"), runs.get("gaussian-torch")
+    pure, tch = runs.get("gaussian-closed"), runs.get("gaussian-gradient")
     if pure is None or tch is None:
-        raise SystemExit("need finished gaussian-pure and gaussian-torch runs")
+        raise SystemExit("need finished gaussian-closed and gaussian-gradient runs")
     params = tracker.get_params(pure["id"])
     n = int(params["dataset.n"])
     mu_true = float(params["dataset.mu"])
@@ -105,7 +105,7 @@ def write_gaussian_figure(tracker: Tracker, runs: dict[str, dict], out: Path) ->
     )
     ax.plot(
         grid, normal_pdf(grid, est_t["mu"], est_t["sigma"]),
-        color=ORANGE, linestyle=":", linewidth=2, label="gradient MLE (torch)",
+        color=ORANGE, linestyle=":", linewidth=2, label="gradient MLE",
     )
     ax.set_xlabel("x", color=INK_MUTED)
     ax.set_ylabel("density", color=INK_MUTED)

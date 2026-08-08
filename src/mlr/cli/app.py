@@ -91,6 +91,13 @@ def optimizers() -> None:
 
 
 @app.command()
+def distributions() -> None:
+    """List registered distributions (for the 'mle' model)."""
+    for name in actions.do_distributions():
+        console.print(f"- {name}")
+
+
+@app.command()
 def topics() -> None:
     """List research topics."""
     root = actions.repo_root()
