@@ -71,33 +71,48 @@ def do_run(config_path: Path, db: str | Path) -> int:
         f"training={config.get('training', {})}"
     )
     with Tracker(db) as tracker:
-        with Progress(
-            TextColumn("epoch {task.completed}/{task.total}"),
-            BarColumn(),
-            TaskProgressColumn(),
-            TimeElapsedColumn(),
-            TextColumn("{task.description}"),
-            console=console,
-        ) as progress:
-            task = progress.add_task("starting...", total=epochs)
+        if epochs is None:  # closed-form fit: no epochs, no progress bar
+            run_id = run_experiment(config, tracker)
+        else:
+            with Progress(
+                TextColumn("epoch {task.completed}/{task.total}"),
+                BarColumn(),
+                TaskProgressColumn(),
+                TimeElapsedColumn(),
+                TextColumn("{task.description}"),
+                console=console,
+            ) as progress:
+                task = progress.add_task("starting...", total=epochs)
 
-            def show(epoch: int, metrics: dict) -> None:
-                progress.update(
-                    task,
-                    advance=1,
-                    description="  ".join(f"{k}={v:.4f}" for k, v in metrics.items()),
-                )
+                def show(epoch: int, metrics: dict) -> None:
+                    progress.update(
+                        task,
+                        advance=1,
+                        description="  ".join(
+                            f"{k}={v:.4f}" for k, v in metrics.items()
+                        ),
+                    )
 
-            run_id = run_experiment(config, tracker, on_epoch=show)
+                run_id = run_experiment(config, tracker, on_epoch=show)
         final = {
             key: value
             for key in ("test_accuracy", "test_nll")
             if (value := tracker.last_metric(run_id, key)) is not None
         }
+        estimates = {
+            key.removeprefix("estimate."): tracker.last_metric(run_id, key)
+            for key in tracker.metric_keys(run_id)
+            if key.startswith("estimate.")
+        }
     final_s = "  ".join(f"{k}={v:.4f}" for k, v in final.items()) or "-"
     console.print(
         f"[green]run {run_id}[/green] ({config['name']}) finished; {final_s}"
     )
+    if estimates:
+        console.print(
+            "[bold]estimates:[/bold] "
+            + "  ".join(f"{k}={v:.4f}" for k, v in sorted(estimates.items()))
+        )
     return run_id
 
 
