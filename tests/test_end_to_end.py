@@ -29,17 +29,35 @@ def test_run_experiment_logs_everything(tmp_path):
         assert tr.last_metric(run_id, "test_accuracy") > 0.9
 
 
-def test_cli_run_and_runs(tmp_path, capsys):
+def test_cli_run_runs_best(tmp_path):
     import yaml
+    from typer.testing import CliRunner
 
-    from mlr.cli import main
+    from mlr.cli import app
 
+    runner = CliRunner()
     config_path = tmp_path / "config.yaml"
     config_path.write_text(yaml.safe_dump(CONFIG))
     db = str(tmp_path / "t.db")
 
-    assert main(["run", str(config_path), "--db", db]) == 0
-    assert "test_accuracy=" in capsys.readouterr().out
+    result = runner.invoke(app, ["run", str(config_path), "--db", db])
+    assert result.exit_code == 0, result.output
+    assert "test_accuracy=" in result.output
 
-    assert main(["runs", "--db", db, "--topic", "linear-discriminator"]) == 0
-    assert "linear-discriminator/e2e" in capsys.readouterr().out
+    result = runner.invoke(app, ["runs", "--db", db, "--topic", "linear-discriminator"])
+    assert result.exit_code == 0, result.output
+    assert "e2e" in result.output
+
+    result = runner.invoke(app, ["best", "linear-discriminator", "--db", db])
+    assert result.exit_code == 0, result.output
+    assert "best test_accuracy" in result.output
+
+
+def test_cli_lists_registered_names():
+    from typer.testing import CliRunner
+
+    from mlr.cli import app
+
+    runner = CliRunner()
+    assert "linear-discriminator" in runner.invoke(app, ["models"]).output
+    assert "two-gaussians" in runner.invoke(app, ["datasets"]).output

@@ -39,18 +39,34 @@ pytest                         # test suite
 
 ## Workflow
 
-(with `ml-research` activated)
+(with `ml-research` activated, from the repo root)
 
 ```sh
-# 1. Train + track an experiment (config names a registered model & dataset)
+mlr            # interactive menu: run experiments, build papers, scaffold — no args to remember
+```
+
+Or the direct subcommands:
+
+```sh
+# Train + track an experiment (config names a registered model & dataset)
 mlr run research/linear-discriminator/experiments/baseline.yaml
 
-# 2. Inspect tracked runs
+# Inspect what you've run
 mlr runs --topic linear-discriminator
+mlr best linear-discriminator          # best run by test_accuracy
+mlr topics                             # research topics + counts
+mlr models                             # registered models
+mlr datasets                           # registered datasets
 
-# 3. Rebuild a paper: regenerates its figures/tables from tracking.db,
-#    then compiles with pdflatex (two passes)
+# Rebuild a paper: regenerates its figures/tables from tracking.db,
+# then compiles with pdflatex (two passes)
 mlr paper research/linear-discriminator/papers/02-loss-based-training
+
+# Scaffold new pieces (layout + templates created for you)
+mlr new topic my-idea
+mlr new experiment my-idea baseline --model linear-discriminator --dataset two-gaussians
+mlr new model "fancy tree"             # file + registration + import wired up
+mlr new paper my-idea first-note --assets
 ```
 
 ## Adding things
