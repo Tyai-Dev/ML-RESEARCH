@@ -1,0 +1,60 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb}
+\usepackage[margin=1.1in]{geometry}
+
+\title{Bernoulli MLE: Closed Form and SGD}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{Setup}
+
+Let $x_1,\dots,x_n \overset{\text{iid}}{\sim} \mathrm{Bernoulli}(p)$ with
+$x_i \in \{0,1\}$. The likelihood and average negative log-likelihood (NLL)
+are
+\begin{equation}
+  L(p) = \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i},
+  \qquad
+  \mathcal{L}(p) = -\bar{x}\log p - (1-\bar{x})\log(1-p),
+\end{equation}
+where $\bar{x} = \tfrac1n\sum_i x_i$. Note the data enters only through
+$\bar{x}$ --- a sufficient statistic.
+
+\section{The theoretical solution}
+
+Setting $\mathcal{L}'(p) = -\bar{x}/p + (1-\bar{x})/(1-p) = 0$ gives
+\begin{equation}
+  \hat{p}_{\mathrm{MLE}} = \bar{x}.
+\end{equation}
+Since $\mathcal{L}''(p) = \bar{x}/p^2 + (1-\bar{x})/(1-p)^2 > 0$, the NLL is
+strictly convex on $(0,1)$ and $\bar{x}$ is its unique minimizer.
+
+\section{SGD on the NLL}
+
+Parameterize $p = \sigma(t) = (1+e^{-t})^{-1}$ so the search is
+unconstrained (by invariance of the MLE, optimizing $t$ and mapping back
+gives the same estimate). The per-batch gradient is remarkably clean:
+\begin{equation}
+  \frac{\partial}{\partial t}\,
+  \Bigl[-\tfrac1{|B|}\textstyle\sum_{i\in B} \log
+  \mathrm{Bern}(x_i;\sigma(t))\Bigr]
+  \;=\; \sigma(t) - \bar{x}_B ,
+\end{equation}
+so the update $t \leftarrow t - \eta\,(\sigma(t) - \bar{x}_B)$ pushes
+$\sigma(t)$ toward each batch mean; averaged over batches the fixed point is
+$\sigma(t^\ast) = \bar{x}$. Convexity in $t$ (the loss is
+$\log(1+e^{t}) - \bar{x}_B\,t$ per batch) means SGD has one basin to find.
+
+\section{What the experiment shows}
+
+\texttt{mle.py} draws $n = 5000$ samples at $p = 0.3$ and reports both
+estimates. One subtlety: with a constant step size, a single SGD iterate
+never converges --- it wanders in a noise ball around the optimum, so the
+script averages the final epoch's iterates (Polyak--Ruppert averaging),
+after which the two estimates agree to a few $10^{-3}$. Two routes, one
+optimum --- the likelihood surface, not the algorithm, decides where
+estimation lands.
+
+\end{document}

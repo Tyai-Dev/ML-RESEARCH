@@ -39,3 +39,6 @@ blackboard/workspace/
 
 # API keys (blackboard assistant)
 .env
+
+# Manual build artifacts
+Manual/**/*.pdf
