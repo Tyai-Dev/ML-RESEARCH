@@ -224,9 +224,30 @@ def studio_new(slug: str, open_after: bool = typer.Option(True, "--open/--no-ope
 
 
 @studio_app.command("open")
-def studio_open(slug: str) -> None:
+def studio_open(
+    slug: str = typer.Argument(None, help="Studio to open (picked/prompted if omitted).")
+) -> None:
     """Open a studio's notebook and tex side by side in VS Code."""
-    studio_dir = actions.repo_root() / "studio" / slug
+    import sys
+
+    root = actions.repo_root()
+    if slug is None:
+        studios = scaffold.list_studios(root)
+        if not studios:
+            console.print("no studios yet; start one with: mlr studio new <slug>")
+            raise typer.Exit(1)
+        if len(studios) == 1:
+            slug = studios[0]
+        elif sys.stdin.isatty():
+            import questionary
+
+            slug = questionary.select("Which studio?", studios).ask()
+            if slug is None:
+                raise typer.Exit(1)
+        else:
+            console.print("several studios exist; pass one: " + ", ".join(studios))
+            raise typer.Exit(1)
+    studio_dir = root / "studio" / slug
     if not studio_dir.exists():
         console.print(f"[red]no such studio:[/red] {studio_dir}")
         raise typer.Exit(1)

@@ -2,6 +2,16 @@
     "version": "0.2.0",
     "configurations": [
         {
+            "name": "studio",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "mlr.cli",
+            "args": ["studio", "open"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        },
+        {
             "name": "mlr menu",
             "type": "debugpy",
             "request": "launch",
