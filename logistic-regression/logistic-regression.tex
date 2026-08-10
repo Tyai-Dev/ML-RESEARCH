@@ -1,0 +1,195 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\sig}{\sigma}
+\newcommand{\D}{\mathcal{D}}
+
+\title{Logistic Regression:\\
+A Bernoulli Whose Parameter Is a Function of $X$}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Binary classification, seen from statistics: the label given the features
+is \emph{always} a Bernoulli variable --- the only modeling decision is
+the form of its parameter function $p(x) = \Pr(Y{=}1 \mid X{=}x)$. The
+linear classifier bets on linear log-odds, $p(x) = \sig(w^\top x)$, and
+conditional maximum likelihood then reproduces, composed, the two
+gradients of the previous notes. New phenomena: the stationarity
+equations are transcendental --- the first model in this collection with
+\emph{no closed form} --- yet the loss is convex, Newton's method (IRLS)
+solves it in a handful of weighted least-squares steps, the fitted
+classifier approaches the Bayes floor, and on separable data the MLE
+fails to exist. All demonstrated in \texttt{logistic.py}.
+\end{abstract}
+
+\section{The conditional-Bernoulli view}
+
+Let $(X, Y)$ be jointly distributed with $Y \in \{0,1\}$. Whatever the
+joint $\D$ is, it factors as a marginal over $x$ times a conditional over
+$y$ --- and a distribution on $\{0,1\}$ \emph{is} a Bernoulli, so with no
+assumption at all:
+\begin{equation}
+  Y \mid X = x \;\sim\; \mathrm{Bernoulli}\bigl(p(x)\bigr),
+  \qquad
+  p(x) \;=\; \Pr(Y=1 \mid X=x) \;=\; \mathbb{E}[Y \mid X=x].
+  \label{eq:condbern}
+\end{equation}
+The object of interest is not one random variable but the \emph{family}
+of Bernoullis indexed by $x$ --- equivalently the single function
+$p:\mathcal{X}\to[0,1]$ (the \emph{regression function}). ``$Z = Y|X$ is
+Bernoulli with parameter depending on $X$'' is exactly this, stated for
+each slice $X = x$.
+
+\paragraph{Where the assumption actually lives.}
+Bernoulli-ness in \eqref{eq:condbern} is forced by the binary support and
+costs nothing. The entire model is the choice of a \emph{form} for
+$p(x)$. The constant choice $p(x)\equiv p$ is the \texttt{bernoulli/}
+experiment; the linear classifier's choice cannot be
+$p(x) = w^\top x$ (a line escapes $[0,1]$), so linearity is placed in the
+\emph{log-odds}:
+\begin{equation}
+  \log\frac{p(x)}{1-p(x)} \;=\; w^\top x
+  \qquad\Longleftrightarrow\qquad
+  p(x) \;=\; \sig(w^\top x) \;=\; \frac{1}{1+e^{-w^\top x}},
+  \label{eq:logit}
+\end{equation}
+with $x$ carrying a fixed leading $1$ so $w$ includes the intercept. In
+GLM language: Bernoulli response, logit link. The decision boundary
+$\{x : p(x) = \tfrac12\}$ is the hyperplane $w^\top x = 0$ --- the
+``linear'' of the linear classifier.
+
+\section{Conditional maximum likelihood}
+
+Given samples $(x_i, y_i)_{i=1}^n$, condition on the observed $x_i$ and
+apply \eqref{eq:condbern}: the conditional likelihood and (after the
+usual $\log$, $\div n$, negate --- each optimizer-preserving) the average
+NLL are
+\begin{equation}
+  L(w) = \prod_{i=1}^n p(x_i)^{y_i}\bigl(1-p(x_i)\bigr)^{1-y_i},
+  \qquad
+  \mathcal{L}(w)
+  = -\frac1n\sum_{i=1}^n
+  \Bigl[y_i\log p(x_i) + (1-y_i)\log\bigl(1-p(x_i)\bigr)\Bigr],
+  \label{eq:nll}
+\end{equation}
+with $p(x_i) = \sig(w^\top x_i)$ --- the \emph{cross-entropy loss},
+which by the information-theory note is
+$H(\text{data}) + \mathrm{KL}(\text{data}\,\|\,\text{model})$ in
+conditional form.
+
+\paragraph{The gradient composes the previous two notes.}
+Per sample, write $z_i = w^\top x_i$. The Bernoulli note gives
+$\partial \mathcal{L}_i/\partial z_i = \sig(z_i) - y_i$
+(the chain rule through $\sig' = \sig(1-\sig)$, everything cancelling);
+the linear-regression note gives $\partial z_i/\partial w = x_i$. Chained:
+\begin{equation}
+  \nabla_w \mathcal{L}_i
+  \;=\; \bigl(\sig(w^\top x_i) - y_i\bigr)\, x_i ,
+  \qquad
+  \nabla_w \mathcal{L}
+  \;=\; \frac1n X^\top\bigl(\sig(Xw) - y\bigr)
+  \label{eq:grad}
+\end{equation}
+--- \emph{Bernoulli residual times feature vector}: the same
+``prediction minus target, pushed along the features'' shape as least
+squares, with the sigmoid interposed.
+
+\section{The closed form dies --- and what survives}
+
+Setting \eqref{eq:grad} to zero:
+\begin{equation}
+  \sum_{i=1}^n \sig(w^\top x_i)\, x_i \;=\; \sum_{i=1}^n y_i\, x_i .
+  \label{eq:stationarity}
+\end{equation}
+Sigmoids of the unknowns, summed: \emph{transcendental} in $w$. Bernoulli
+gave $\hat p = m/n$; least squares gave the normal equations; here
+algebra produces nothing --- the first model in this collection where the
+theoretical route genuinely does not exist. Not for lack of good
+structure:
+
+\begin{proposition}
+$\mathcal{L}$ is convex: its Hessian is
+\begin{equation}
+  \nabla^2 \mathcal{L}(w)
+  \;=\; \frac1n X^\top S X \;\succeq\; 0,
+  \qquad
+  S = \operatorname{diag}\bigl(p_i(1-p_i)\bigr),
+  \label{eq:hessian}
+\end{equation}
+the weights being exactly the conditional Bernoulli variances. Hence
+every stationary point is a global minimum (optimization note), and
+gradient methods inherit one basin.
+\end{proposition}
+
+\paragraph{Newton / IRLS: the statistician's solver.}
+Convex + smooth + cheap Hessian invites Newton's method
+(optimizers note): $w \leftarrow w - (X^\top S X)^{-1} X^\top(p - y)$
+(the $1/n$ cancels). Rearranged, each iteration solves the
+\emph{weighted least-squares} system $X^\top S X\, d = X^\top (y - p)$
+--- \emph{iteratively reweighted least squares}: logistic regression as a
+sequence of linear regressions, reweighted by the current Bernoulli
+variances, with quadratic convergence (the script needs 8 steps to
+exhaust float64 while GD takes thousands). This is the classical fit
+route in statistics packages.
+
+\begin{remark}[When the MLE does not exist: separable data]
+If some $w$ classifies the sample perfectly ($w^\top x_i > 0$ exactly
+when $y_i = 1$), then scaling $w \to c\,w$ with $c\to\infty$ drives every
+$p(x_i)$ to its label and $\mathcal{L} \to 0$ without attaining it: the
+infimum is not achieved, $\lVert w\rVert$ diverges, and probabilities
+saturate. The script watches $\lVert w\rVert$ grow without bound under GD
+on separable data. Cures: $\ell_2$ regularization (adds
+$\tfrac{\lambda}{2}\lVert w\rVert^2$, restoring strong convexity and a
+finite optimum) or early stopping. Ironically, ``too easy'' data breaks
+the estimator.
+\end{remark}
+
+\section{The Bayes floor}
+
+Whatever classifier $h$ anyone builds from $x$, its error obeys
+\begin{equation}
+  \Pr\bigl(h(X) \ne Y\bigr)
+  \;\ge\;
+  \mathbb{E}\bigl[\min\{p(X),\, 1 - p(X)\}\bigr],
+  \label{eq:bayes}
+\end{equation}
+with equality for the \emph{Bayes classifier}
+$h^\ast(x) = \mathbf{1}[p(x) > \tfrac12]$: at each $x$ you cannot beat
+predicting the likelier label, and its mistake probability is the smaller
+of the two. The floor is a property of the \emph{distribution} (how often
+$p(x)$ is near $\tfrac12$), not of any algorithm --- it is the label
+noise of the learnability note, seen from the statistics side. Because
+our experiment is well-specified (data genuinely logistic), conditional
+MLE is consistent for $w^\ast$, and the fitted classifier's error
+approaches \eqref{eq:bayes}.
+
+\begin{remark}[Misspecification]
+If the true $p(x)$ is \emph{not} of the form \eqref{eq:logit}, the MLE
+does not break --- by the information-theory note it converges to the KL
+projection of the truth onto the logistic family: the best logistic
+approximation, in exactly the divergence that cross-entropy measures.
+Well-specified consistency and misspecified KL projection are the same
+theorem seen twice.
+\end{remark}
+
+\section{Experiment}
+
+$n = 5000$, $x \sim \mathcal{N}(0, I_2)$, $w^\ast = (0.5,\, 2,\, -1.5)$,
+labels drawn from \eqref{eq:condbern} (seed 7). Newton/IRLS and GD agree
+on the unique optimum ($\hat w \approx w^\ast$ to sampling accuracy);
+hand and autograd SGD trajectories coincide to $10^{-10}$; the fitted
+classifier's test error matches the Bayes floor
+$\mathbb{E}[\min(p, 1-p)]$ to three decimals; and the third panel plots
+fitted $\sig(\hat w^\top x)$ against true $p(x)$ on fresh points ---
+a diagonal: what was estimated is not a label rule but \emph{the Bernoulli
+parameter as a function of $x$}, which is where this note began.
+
+\end{document}

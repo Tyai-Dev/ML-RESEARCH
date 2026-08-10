@@ -24,6 +24,7 @@ equation.
 | `bernoulli/` | Bernoulli MLE: closed form, GD, SGD, and SGD via autograd — trajectories of hand vs autograd coincide exactly |
 | `gaussian/` | 1D normal MLE for (mu, sigma): same four routes; the MLE variance is the biased 1/n estimator |
 | `linear-regression/` | Normal equations vs GD/SGD, and why the closed form is not always the right tool (cost, conditioning — with a float32 demo where normal equations lose to QR by 4000x — streaming, generality) |
+| `logistic-regression/` | The conditional-Bernoulli view of classification: Y\|X=x ~ Bernoulli(p(x)), linear log-odds, conditional MLE. First model with no closed form (transcendental stationarity) — solved by Newton/IRLS in 8 steps vs GD's 3000; separable-data MLE nonexistence; fitted classifier hits the Bayes floor to 3 decimals |
 
 ## Theory (reference pages)
 
