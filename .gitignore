@@ -2,18 +2,6 @@
 __pycache__/
 *.pyc
 .venv/
-*.egg-info/
-.pytest_cache/
-
-# Tracking database (metadata lives here, regenerate by re-running experiments)
-tracking.db
-
-# Dataset blobs — manifests are committed, data is not
-datasets/raw/
-datasets/processed/
-
-# Generated paper assets (regenerate with `mlr paper`)
-research/*/results/
 
 # LaTeX build artifacts
 *.aux
@@ -23,22 +11,7 @@ research/*/results/
 *.fdb_latexmk
 *.synctex.gz
 *.toc
-*.bbl
-*.blg
-research/**/*.pdf
-studio/**/*.pdf
+**/*.pdf
 
-# Jupyter
-.ipynb_checkpoints/
-
-# JupyterLab cache
-.virtual_documents/
-
-# Blackboard personal workspace (your boards, not the app)
-blackboard/workspace/
-
-# API keys (blackboard assistant)
+# secrets
 .env
-
-# Manual build artifacts
-Manual/**/*.pdf

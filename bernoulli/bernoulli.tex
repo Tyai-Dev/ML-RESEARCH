@@ -1,0 +1,137 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newcommand{\sigmoid}{\sigma}
+\newcommand{\xbar}{\bar{x}}
+
+\title{Bernoulli Maximum-Likelihood Estimation, Three Ways:\\
+Closed Form, Hand-Derived SGD, and Autograd}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+We estimate the parameter of a Bernoulli distribution from i.i.d.\ samples
+three ways: the theoretical (closed-form) maximum-likelihood solution;
+stochastic gradient descent with a gradient derived by hand; and stochastic
+gradient descent with the gradient computed by PyTorch's autograd. The
+companion script \texttt{mle.py} runs all three and verifies, by driving
+the two SGD variants through identical batch sequences, that autograd
+reproduces the hand-derived gradient to floating-point precision.
+\end{abstract}
+
+\section{Setup}
+
+Let $x_1,\dots,x_n \overset{\text{iid}}{\sim} \mathrm{Bernoulli}(p)$ with
+$x_i \in \{0,1\}$ and unknown $p \in (0,1)$. The likelihood of the sample
+and the average negative log-likelihood (NLL) are
+\begin{equation}
+  L(p) \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i},
+  \qquad
+  \mathcal{L}(p) \;=\; -\xbar\log p - (1-\xbar)\log(1-p),
+  \label{eq:nll}
+\end{equation}
+where $\xbar = \tfrac1n\sum_i x_i$. The data enters $\mathcal{L}$ only
+through $\xbar$: the sample mean is a \emph{sufficient statistic} for $p$.
+Maximizing $L$ and minimizing $\mathcal{L}$ are equivalent because
+$-\tfrac1n\log(\cdot)$ is strictly decreasing.
+
+\section{Route 1: the theoretical solution}
+
+\begin{proposition}
+$\hat{p}_{\mathrm{MLE}} = \xbar$, and it is the unique minimizer of
+$\mathcal{L}$ on $(0,1)$.
+\end{proposition}
+
+\begin{proof}
+Stationarity: $\mathcal{L}'(p) = -\xbar/p + (1-\xbar)/(1-p) = 0$ gives
+$p(1-\xbar) = (1-p)\xbar$, hence $p = \xbar$. Uniqueness:
+$\mathcal{L}''(p) = \xbar/p^{2} + (1-\xbar)/(1-p)^{2} > 0$, so
+$\mathcal{L}$ is strictly convex on $(0,1)$ and the stationary point is the
+global minimum.
+\end{proof}
+
+\section{Route 2: SGD with a hand-derived gradient}
+
+Gradient methods should search an unconstrained space, but $p$ lives in
+$(0,1)$. Parameterize
+\begin{equation}
+  p = \sigmoid(t) = \frac{1}{1+e^{-t}}, \qquad t \in \mathbb{R},
+\end{equation}
+which is legitimate by the \emph{invariance} of maximum likelihood: if
+$\hat{t}$ maximizes the likelihood over $t$, then $\sigmoid(\hat{t})$
+maximizes it over $p$.
+
+For a mini-batch $B \subseteq \{1,\dots,n\}$ with mean $\xbar_B$, substituting
+$p=\sigmoid(t)$ into \eqref{eq:nll} and simplifying with
+$\log\sigmoid(t) = -\log(1+e^{-t})$ and
+$\log(1-\sigmoid(t)) = -t-\log(1+e^{-t})$ gives the batch objective in
+logit form,
+\begin{equation}
+  \mathcal{L}_B(t) \;=\; \log\!\left(1+e^{t}\right) - \xbar_B\, t ,
+  \label{eq:logitnll}
+\end{equation}
+which is convex in $t$ (its second derivative is
+$\sigmoid(t)(1-\sigmoid(t)) > 0$). Differentiating, everything collapses
+through $\sigmoid' = \sigmoid(1-\sigmoid)$ to the remarkably clean
+\begin{equation}
+  \frac{d\mathcal{L}_B}{dt} \;=\; \sigmoid(t) - \xbar_B .
+  \label{eq:grad}
+\end{equation}
+SGD iterates $t \leftarrow t - \eta\,(\sigmoid(t) - \xbar_B)$ over
+reshuffled mini-batches: each update pushes the current estimate
+$\sigmoid(t)$ toward the batch mean, and the fixed point of the averaged
+dynamics is $\sigmoid(t^{\ast}) = \xbar$ --- the closed form again.
+
+\paragraph{Polyak--Ruppert averaging.}
+With a constant step size, the SGD iterate never converges: it reaches a
+stationary \emph{distribution}, a noise ball around the optimum whose
+radius scales with $\eta$ and the batch variance. The estimator is
+therefore taken as the average of the final epoch's iterates,
+$\hat{p}_{\mathrm{SGD}} = \tfrac{1}{K}\sum_{k} \sigmoid(t_k)$, which
+suppresses the oscillation and lands within a few $10^{-3}$ of $\xbar$.
+
+\section{Route 3: SGD with autograd}
+
+PyTorch's \texttt{binary\_cross\_entropy\_with\_logits}$(t, x_B)$ computes
+exactly the batch objective \eqref{eq:logitnll}:
+\begin{equation}
+  \mathrm{BCE}(t, x_B)
+  \;=\; \frac{1}{|B|}\sum_{i\in B}\Bigl[\log\!\left(1+e^{t}\right) - x_i t\Bigr]
+  \;=\; \mathcal{L}_B(t).
+\end{equation}
+Calling \texttt{loss.backward()} applies reverse-mode automatic
+differentiation to this expression, so it must produce
+\texttt{t.grad} $= \sigmoid(t)-\xbar_B$, identically \eqref{eq:grad} ---
+autograd mechanizes the chain rule; it does not change the mathematics.
+\texttt{torch.optim.SGD} then performs the same update
+$t \leftarrow t - \eta\,\texttt{t.grad}$.
+
+\paragraph{Proof by computation.}
+The script drives routes 2 and 3 through the \emph{identical} sequence of
+mini-batches, the same $\eta$, and the same initialization $t_0 = 0$ (in
+\texttt{float64} on both sides). Under those conditions the two
+trajectories can differ only if the gradients differ; the script asserts
+$\max_k |\sigmoid(t_k^{\text{hand}}) - \sigmoid(t_k^{\text{autograd}})| <
+10^{-10}$, which passes --- an end-to-end check that
+\eqref{eq:grad} is exactly what autograd computes.
+
+\section{Experiment}
+
+With $p = 0.3$ and $n = 5000$ (seed 7): the closed form gives
+$\hat{p} = \xbar \approx 0.2978$; both SGD routes, Polyak-averaged over the
+last epoch, land within a few $10^{-3}$ of it; and the two SGD trajectories
+coincide to $10^{-10}$. The left panel of the figure produced by
+\texttt{mle.py} shows the strictly convex NLL landscape with all estimates
+on it; the right panel overlays the two (indistinguishable) trajectories
+settling into the noise ball around $\xbar$.
+
+Three routes, one destination: the likelihood surface --- not the
+optimizer --- decides where estimation lands.
+
+\end{document}

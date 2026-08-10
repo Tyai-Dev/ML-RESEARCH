@@ -9,55 +9,6 @@
             "console": "integratedTerminal",
             "cwd": "${fileDirname}",
             "justMyCode": true
-        },
-        {
-            "name": "blackboard",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "blackboard.server",
-            "args": ["--root", "${workspaceFolder}/blackboard/workspace"],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": true
-        },
-        {
-            "name": "studio (jupyterlab)",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "mlr.cli",
-            "args": ["studio", "open"],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": true
-        },
-        {
-            "name": "mlr menu",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "mlr.cli",
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": true
-        },
-        {
-            "name": "mlr run baseline",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "mlr.cli",
-            "args": ["run", "research/linear-discriminator/experiments/baseline.yaml"],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": true
-        },
-        {
-            "name": "pytest",
-            "type": "debugpy",
-            "request": "launch",
-            "module": "pytest",
-            "args": ["-q"],
-            "console": "integratedTerminal",
-            "cwd": "${workspaceFolder}",
-            "justMyCode": false
         }
     ]
 }
