@@ -72,11 +72,12 @@ $\xbar = m/n$, the average negative log-likelihood (NLL) is
   \label{eq:nll}
 \end{equation}
 Chaining the three steps:
-\begin{equation*}
+\begin{equation}
   \arg\max_p L(p)
   \;=\; \arg\max_p \ell(p)
   \;=\; \arg\min_p \mathcal{L}(p),
-\end{equation*}
+  \label{eq:equiv}
+\end{equation}
 so maximizing the likelihood and minimizing the NLL are the same problem,
 each step preserving the optimizer.
 
@@ -105,7 +106,12 @@ Set it to zero and clear denominators:
   \;\;\Longrightarrow\;\;
   m = np,
 \end{equation*}
-hence $p = m/n$: the fraction of ones in the sample. Uniqueness:
+hence
+\begin{equation}
+  \boxed{\;\hat{p}_{\mathrm{MLE}} \;=\; \frac{m}{n} \;=\; \xbar\;}
+  \label{eq:phat}
+\end{equation}
+--- the fraction of ones in the sample. Uniqueness:
 $\ell''(p) = -m/p^{2} - (n-m)/(1-p)^{2} < 0$, so $\ell$ is strictly concave
 on $(0,1)$ and the stationary point is the global maximum.
 \end{proof}
