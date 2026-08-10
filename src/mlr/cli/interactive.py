@@ -122,8 +122,35 @@ def _new_something(root: Path) -> None:
         console.print(f"[green]created[/green] {paper_dir}")
 
 
+def _studio(root: Path) -> None:
+    from mlr.cli.app import _studio_open_dir
+
+    action = _select("Studio:", ["open existing", "new", "graduate"])
+    if action is None:
+        return
+    if action == "new":
+        slug = questionary.text("Slug (kebab-case, e.g. bernoulli-mle):").ask()
+        if slug:
+            studio_dir = scaffold.new_studio(root, slug)
+            console.print(f"[green]created[/green] {studio_dir}")
+            _studio_open_dir(studio_dir)
+        return
+    name = _select("Which studio?", scaffold.list_studios(root))
+    if name is None:
+        return
+    if action == "open existing":
+        _studio_open_dir(root / "studio" / name)
+    else:
+        topic = questionary.text("Graduate into topic:").ask()
+        if topic:
+            created = scaffold.graduate_studio(root, name, topic)
+            console.print(f"[green]paper:[/green] {created['paper']}")
+            console.print(f"[green]notebook:[/green] {created['notebook']}")
+
+
 _MENU = {
     "Run an experiment": _run_experiment,
+    "Studio (notebook + LaTeX draft space)": _studio,
     "MLE study (sampling distribution of the estimator)": _mle_study,
     "Show tracked runs": _show_runs,
     "Best run of a topic": _best_run,

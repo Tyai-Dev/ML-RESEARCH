@@ -26,3 +26,7 @@ research/*/results/
 *.bbl
 *.blg
 research/**/*.pdf
+studio/**/*.pdf
+
+# Jupyter
+.ipynb_checkpoints/

@@ -14,7 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 torch = ["torch>=2.4"]
-dev = ["pytest>=8.0"]
+dev = ["pytest>=8.0", "ipykernel>=6.0"]
 
 [project.scripts]
 mlr = "mlr.cli:main"

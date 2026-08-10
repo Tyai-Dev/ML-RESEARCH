@@ -86,6 +86,27 @@ mlr new paper my-idea first-note --assets
   `../../results/tables/` and figures to `../../results/figures/`, pulling
   numbers only from the tracker so the paper can never disagree with the runs.
 
+## Studio: the draft space
+
+Research starts messy; the studio is where it's allowed to. A studio is a
+notebook and a LaTeX page that grow together — code on the left, theory on
+the right:
+
+```sh
+mlr studio new bernoulli-mle    # creates studio/bernoulli-mle/{main.ipynb, main.tex}
+                                #   and opens both in VS Code (split them once; it sticks)
+mlr paper studio/bernoulli-mle  # compile the draft tex anytime
+mlr studio graduate bernoulli-mle mle   # done exploring? promote it:
+```
+
+The notebook is pre-wired: `%autoreload` (edits to `src/mlr` apply live, no
+kernel restarts), the `ml-research` Jupyter kernel, and imports for the
+registries + tracker (past runs are on disk — nothing reloads or reruns).
+**Graduation** turns the draft into permanent structure: the tex becomes the
+topic's next numbered paper, the notebook is archived under
+`research/<topic>/notebooks/`, and you promote the code that stabilized into
+`src/mlr` (`mlr new model ...`) with experiment configs.
+
 ## Training configuration
 
 Every experiment config has a `training` section; `mlr run` shows a live

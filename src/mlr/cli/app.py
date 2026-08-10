@@ -25,6 +25,11 @@ app = typer.Typer(
 )
 new_app = typer.Typer(help="Scaffold a new topic, experiment, model, or paper.")
 app.add_typer(new_app, name="new")
+studio_app = typer.Typer(
+    help="Draft workspaces: a notebook + a LaTeX page that grow together, "
+    "then graduate into a topic."
+)
+app.add_typer(studio_app, name="studio")
 
 DB_OPTION = typer.Option("tracking.db", "--db", help="Path to the tracking database.")
 
@@ -207,6 +212,68 @@ def new_paper(
         assets=assets,
     )
     console.print(f"[green]created[/green] {paper_dir}")
+
+
+@studio_app.command("new")
+def studio_new(slug: str, open_after: bool = typer.Option(True, "--open/--no-open")) -> None:
+    """Create studio/<slug>/ with main.ipynb + main.tex."""
+    studio_dir = scaffold.new_studio(actions.repo_root(), slug)
+    console.print(f"[green]created[/green] {studio_dir}")
+    if open_after:
+        _studio_open_dir(studio_dir)
+
+
+@studio_app.command("open")
+def studio_open(slug: str) -> None:
+    """Open a studio's notebook and tex side by side in VS Code."""
+    studio_dir = actions.repo_root() / "studio" / slug
+    if not studio_dir.exists():
+        console.print(f"[red]no such studio:[/red] {studio_dir}")
+        raise typer.Exit(1)
+    _studio_open_dir(studio_dir)
+
+
+@studio_app.command("list")
+def studio_list() -> None:
+    """List draft studios."""
+    studios = scaffold.list_studios(actions.repo_root())
+    if not studios:
+        console.print("no studios; start one with: mlr studio new <slug>")
+    for name in studios:
+        console.print(f"- {name}")
+
+
+@studio_app.command("graduate")
+def studio_graduate(slug: str, topic: str) -> None:
+    """Promote a studio: tex -> numbered paper, notebook -> topic archive."""
+    created = scaffold.graduate_studio(actions.repo_root(), slug, topic)
+    console.print(f"[green]paper:[/green]    {created['paper']}")
+    console.print(f"[green]notebook:[/green] {created['notebook']}")
+    console.print(
+        "remaining by hand: promote stabilized code into src/mlr "
+        "(mlr new model ...) and add experiment configs, then "
+        f"`mlr paper {created['paper'].as_posix()}`"
+    )
+
+
+def _studio_open_dir(studio_dir) -> None:
+    import shutil
+    import subprocess
+
+    code = shutil.which("code")
+    if code is None:
+        console.print(
+            f"open these side by side:\n  {studio_dir / 'main.ipynb'}\n  {studio_dir / 'main.tex'}"
+        )
+        return
+    subprocess.run(
+        [code, "-r", str(studio_dir / "main.ipynb"), str(studio_dir / "main.tex")],
+        check=False,
+    )
+    console.print(
+        "opened in VS Code — drag one tab to the side for the split view "
+        "(notebook left, tex right); the layout sticks."
+    )
 
 
 def main(argv: list[str] | None = None) -> None:
