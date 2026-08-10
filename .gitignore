@@ -30,3 +30,6 @@ studio/**/*.pdf
 
 # Jupyter
 .ipynb_checkpoints/
+
+# JupyterLab cache
+.virtual_documents/
