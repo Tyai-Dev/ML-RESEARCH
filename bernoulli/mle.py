@@ -71,12 +71,15 @@ x = rng.binomial(1, P_TRUE, size=N).astype(np.float64)
 # ----------------------------------------------------------------------
 # (1) Theoretical solution
 # ----------------------------------------------------------------------
-# Minimize NLL(p) = -x̄ log p - (1-x̄) log(1-p)  (derived in the module
-# docstring). Stationarity:
-#   NLL'(p) = -x̄/p + (1-x̄)/(1-p) = 0   =>   p (1-x̄) = (1-p) x̄   =>   p = x̄.
-# Second derivative NLL''(p) = x̄/p² + (1-x̄)/(1-p)² > 0, so the NLL is
-# strictly convex on (0,1) and x̄ is the unique global minimizer.
-p_closed = x.mean()
+# Differentiate the log-likelihood l(p) = m log p + (n-m) log(1-p) — the
+# counts keep the algebra honest:
+#     l'(p) = m/p - (n-m)/(1-p) = 0
+#  => m (1-p) = (n-m) p        (clear denominators)
+#  => m - mp  = np - mp
+#  => m = np  =>  p = m/n  — the fraction of ones in the sample.
+# Uniqueness: l''(p) = -m/p² - (n-m)/(1-p)² < 0, so l is strictly concave
+# and this stationary point is the global maximum.
+p_closed = x.mean()  # x̄ = m/n
 
 
 # ----------------------------------------------------------------------

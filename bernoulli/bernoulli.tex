@@ -82,18 +82,40 @@ each step preserving the optimizer.
 
 \section{Route 1: the theoretical solution}
 
+The cleanest derivation works directly on the log-likelihood
+\eqref{eq:loglik}, where the counts keep the algebra honest.
+
 \begin{proposition}
-$\hat{p}_{\mathrm{MLE}} = \xbar$, and it is the unique minimizer of
-$\mathcal{L}$ on $(0,1)$.
+Assume $0 < m < n$. Then $\hat{p}_{\mathrm{MLE}} = m/n = \xbar$, and it is
+the unique maximizer of $\ell$ on $(0,1)$.
 \end{proposition}
 
 \begin{proof}
-Stationarity: $\mathcal{L}'(p) = -\xbar/p + (1-\xbar)/(1-p) = 0$ gives
-$p(1-\xbar) = (1-p)\xbar$, hence $p = \xbar$. Uniqueness:
-$\mathcal{L}''(p) = \xbar/p^{2} + (1-\xbar)/(1-p)^{2} > 0$, so
-$\mathcal{L}$ is strictly convex on $(0,1)$ and the stationary point is the
-global minimum.
+Differentiate \eqref{eq:loglik} term by term:
+\begin{equation*}
+  \ell'(p) \;=\; \frac{m}{p} - \frac{n-m}{1-p}.
+\end{equation*}
+Set it to zero and clear denominators:
+\begin{equation*}
+  \frac{m}{p} = \frac{n-m}{1-p}
+  \;\;\Longrightarrow\;\;
+  m(1-p) = (n-m)\,p
+  \;\;\Longrightarrow\;\;
+  m - mp = np - mp
+  \;\;\Longrightarrow\;\;
+  m = np,
+\end{equation*}
+hence $p = m/n$: the fraction of ones in the sample. Uniqueness:
+$\ell''(p) = -m/p^{2} - (n-m)/(1-p)^{2} < 0$, so $\ell$ is strictly concave
+on $(0,1)$ and the stationary point is the global maximum.
 \end{proof}
+
+(If $m = 0$ or $m = n$, every factor of the likelihood pulls in the same
+direction: $L$ is monotone on $(0,1)$ and its supremum sits at the
+boundary, which is again $m/n$ --- so the formula $\hat p = m/n$ survives
+the edge cases.) Since the three optimization problems of Section~1 share
+their optimizer, $\xbar$ also minimizes the NLL \eqref{eq:nll} --- the
+form the gradient routes below will descend.
 
 \section{Route 2: SGD with a hand-derived gradient}
 
