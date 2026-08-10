@@ -25,21 +25,60 @@ the two SGD variants through identical batch sequences, that autograd
 reproduces the hand-derived gradient to floating-point precision.
 \end{abstract}
 
-\section{Setup}
+\section{Setup: from the likelihood to the NLL, step by step}
 
 Let $x_1,\dots,x_n \overset{\text{iid}}{\sim} \mathrm{Bernoulli}(p)$ with
-$x_i \in \{0,1\}$ and unknown $p \in (0,1)$. The likelihood of the sample
-and the average negative log-likelihood (NLL) are
+$x_i \in \{0,1\}$ and unknown $p \in (0,1)$.
+
+\paragraph{Step 1: the likelihood is a product of two kinds of factors.}
+By independence, the probability of observing exactly this sample is
 \begin{equation}
-  L(p) \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i},
-  \qquad
-  \mathcal{L}(p) \;=\; -\xbar\log p - (1-\xbar)\log(1-p),
+  L(p) \;=\; \prod_{i=1}^{n} \Pr(x_i)
+       \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i}.
+\end{equation}
+Each factor is just a case split written as one expression: it equals $p$
+when $x_i = 1$ and $1-p$ when $x_i = 0$. So if the sample contains
+$m = \sum_i x_i$ ones and $n - m$ zeros, collecting the factors gives
+\begin{equation}
+  L(p) \;=\; p^{\,m}\,(1-p)^{\,n-m}.
+  \label{eq:likelihood}
+\end{equation}
+Already here the data enters only through the count $m$: how the ones and
+zeros are ordered is irrelevant. ($m$, equivalently $\xbar = m/n$, is a
+\emph{sufficient statistic} for $p$.)
+
+\paragraph{Step 2: the logarithm turns the product into a sum.}
+$\log$ is strictly increasing, so it preserves the location of a maximum:
+$\arg\max_p L(p) = \arg\max_p \log L(p)$. Applying it to
+\eqref{eq:likelihood},
+\begin{equation}
+  \ell(p) \;=\; \log L(p) \;=\; m\log p + (n-m)\log(1-p).
+  \label{eq:loglik}
+\end{equation}
+This is the whole reason for working in logs: powers become products,
+products become sums, and sums are easy to differentiate (and do not
+underflow numerically the way a product of $5000$ numbers in $(0,1)$
+would).
+
+\paragraph{Step 3: normalize and negate --- neither moves the optimum.}
+Two cosmetic transformations bring \eqref{eq:loglik} to the standard
+machine-learning form. Dividing by the constant $n > 0$ rescales the
+function but does not move its argmax. Negating flips maximization into
+minimization (the ML convention is to \emph{minimize losses}). With
+$\xbar = m/n$, the average negative log-likelihood (NLL) is
+\begin{equation}
+  \mathcal{L}(p) \;=\; -\tfrac1n\,\ell(p)
+  \;=\; -\xbar\log p - (1-\xbar)\log(1-p).
   \label{eq:nll}
 \end{equation}
-where $\xbar = \tfrac1n\sum_i x_i$. The data enters $\mathcal{L}$ only
-through $\xbar$: the sample mean is a \emph{sufficient statistic} for $p$.
-Maximizing $L$ and minimizing $\mathcal{L}$ are equivalent because
-$-\tfrac1n\log(\cdot)$ is strictly decreasing.
+Chaining the three steps:
+\begin{equation*}
+  \arg\max_p L(p)
+  \;=\; \arg\max_p \ell(p)
+  \;=\; \arg\min_p \mathcal{L}(p),
+\end{equation*}
+so maximizing the likelihood and minimizing the NLL are the same problem,
+each step preserving the optimizer.
 
 \section{Route 1: the theoretical solution}
 

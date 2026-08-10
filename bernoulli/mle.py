@@ -3,13 +3,31 @@ r"""Bernoulli maximum-likelihood estimation, three ways.
 Problem
 -------
 Given i.i.d. samples x_1, ..., x_n ~ Bernoulli(p), estimate p by maximizing
-the likelihood — equivalently, minimizing the average negative
-log-likelihood (NLL)
+the likelihood. Getting from the likelihood to the loss we optimize takes
+three steps, each preserving the optimizer:
 
-    L(p) = -(1/n) sum_i [ x_i log p + (1 - x_i) log(1 - p) ]
-         = -x̄ log p - (1 - x̄) log(1 - p),          x̄ = (1/n) sum_i x_i.
+Step 1 — the likelihood. Each factor p^{x_i} (1-p)^{1-x_i} is a case split:
+it equals p when x_i = 1 and (1-p) when x_i = 0. With m = sum_i x_i ones
+and n - m zeros, the product collapses to
 
-Note the data enters only through x̄ (a sufficient statistic).
+    L(p) = p^m (1-p)^{n-m}.
+
+The data enters only through the count m (equivalently x̄ = m/n): a
+sufficient statistic — the ordering of the sample is irrelevant.
+
+Step 2 — take the log. log is strictly increasing, so it does not move the
+argmax; it turns the powers into a sum that is easy to differentiate (and
+immune to the numerical underflow of multiplying 5000 numbers in (0,1)):
+
+    l(p) = log L(p) = m log p + (n - m) log(1 - p).
+
+Step 3 — normalize and negate. Dividing by the constant n > 0 rescales
+without moving the argmax; negating turns maximization into minimization
+(the ML convention: minimize losses). The average negative log-likelihood:
+
+    NLL(p) = -(1/n) l(p) = -x̄ log p - (1 - x̄) log(1 - p).
+
+So  argmax L  =  argmax l  =  argmin NLL  — one problem, three notations.
 
 The three routes
 ----------------
@@ -53,9 +71,11 @@ x = rng.binomial(1, P_TRUE, size=N).astype(np.float64)
 # ----------------------------------------------------------------------
 # (1) Theoretical solution
 # ----------------------------------------------------------------------
-# Stationarity:  L'(p) = -x̄/p + (1-x̄)/(1-p) = 0  =>  p (1-x̄) = (1-p) x̄
-# => p = x̄.  Second derivative  L''(p) = x̄/p² + (1-x̄)/(1-p)² > 0, so the
-# NLL is strictly convex and x̄ is the unique global minimizer.
+# Minimize NLL(p) = -x̄ log p - (1-x̄) log(1-p)  (derived in the module
+# docstring). Stationarity:
+#   NLL'(p) = -x̄/p + (1-x̄)/(1-p) = 0   =>   p (1-x̄) = (1-p) x̄   =>   p = x̄.
+# Second derivative NLL''(p) = x̄/p² + (1-x̄)/(1-p)² > 0, so the NLL is
+# strictly convex on (0,1) and x̄ is the unique global minimizer.
 p_closed = x.mean()
 
 
