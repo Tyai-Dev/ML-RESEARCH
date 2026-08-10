@@ -6,7 +6,7 @@
             "type": "debugpy",
             "request": "launch",
             "module": "blackboard.server",
-            "args": ["--root", "${workspaceFolder}"],
+            "args": ["--root", "${workspaceFolder}/blackboard/workspace"],
             "console": "integratedTerminal",
             "cwd": "${workspaceFolder}",
             "justMyCode": true

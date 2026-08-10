@@ -1,10 +1,11 @@
-"""Blackboard server: files, cells, theory board, tracker — one local app.
+"""Blackboard server: files, cells, theory board — one local app.
 
     blackboard [--root PATH] [--port 8321] [--no-browser]
 
 Serves the UI at http://127.0.0.1:<port>/ and a small JSON API underneath.
-The root is the ML-RESEARCH repo; every file path in the API is validated
-to stay inside it.
+The root is Blackboard's own workspace directory (created if missing) —
+deliberately standalone; every file path in the API is validated to stay
+inside it.
 """
 
 import argparse
@@ -27,8 +28,24 @@ kernel = Kernel()
 kernel_lock = threading.Lock()
 ROOT = Path.cwd()
 
-_BROWSE = ("studio", "research", "src/mlr")  # what the files rail shows
 _EDIT_SUFFIXES = {".tex", ".py", ".yaml", ".md", ".bib", ".txt"}
+
+_TEX_TEMPLATE = """\\documentclass[11pt]{article}
+\\usepackage{amsmath,amssymb,amsthm}
+\\usepackage{graphicx}
+\\usepackage[margin=1.1in]{geometry}
+
+\\title{%s}
+\\author{}
+\\date{\\today}
+
+\\begin{document}
+\\maketitle
+
+\\section{Question}
+
+\\end{document}
+"""
 
 
 def _safe(rel: str) -> Path:
@@ -53,7 +70,7 @@ def workspace() -> dict:
             if child.name.startswith((".", "__")) or child.suffix in (".pdf", ".aux",
                     ".log", ".out", ".fls", ".fdb_latexmk", ".synctex.gz", ".pyc"):
                 continue
-            rel = f"{rel_base}/{child.name}"
+            rel = f"{rel_base}/{child.name}" if rel_base else child.name
             if child.is_dir():
                 out.append({"name": child.name, "path": rel, "dir": True,
                             "children": tree(child, rel, depth + 1)})
@@ -61,12 +78,35 @@ def workspace() -> dict:
                 out.append({"name": child.name, "path": rel, "dir": False})
         return out
 
-    return {
-        "root": str(ROOT),
-        "sections": [
-            {"name": part, "children": tree(ROOT / part, part)} for part in _BROWSE
-        ],
-    }
+    return {"root": str(ROOT), "tree": tree(ROOT, "")}
+
+
+class NewBoard(BaseModel):
+    name: str
+
+
+@app.post("/api/board")
+def new_board(req: NewBoard) -> dict:
+    import re
+
+    slug = re.sub(r"[^a-z0-9]+", "-", req.name.lower()).strip("-")
+    if not slug:
+        raise HTTPException(400, "give the board a name")
+    board_dir = ROOT / slug
+    if board_dir.exists():
+        raise HTTPException(409, f"board already exists: {slug}")
+    board_dir.mkdir(parents=True)
+
+    nb = nbformat.v4.new_notebook()
+    nb.cells = [
+        nbformat.v4.new_markdown_cell(f"# {req.name}"),
+        nbformat.v4.new_code_cell(""),
+    ]
+    nbformat.write(nb, board_dir / "main.ipynb")
+    (board_dir / "main.tex").write_text(
+        _TEX_TEMPLATE % req.name.replace("\\", ""), encoding="utf-8"
+    )
+    return {"created": slug, "notebook": f"{slug}/main.ipynb", "tex": f"{slug}/main.tex"}
 
 
 @app.get("/api/file")
@@ -172,34 +212,17 @@ def serve_pdf(path: str) -> FileResponse:
     return FileResponse(target, media_type="application/pdf")
 
 
-@app.get("/api/runs")
-def runs(topic: str | None = None) -> dict:
-    from mlr.tracking import Tracker
-
-    db = ROOT / "tracking.db"
-    if not db.exists():
-        return {"runs": []}
-    with Tracker(db) as tracker:
-        rows = tracker.list_runs(topic=topic)
-        out = []
-        for run in rows[-30:]:
-            metric = tracker.last_metric(run["id"], "test_accuracy")
-            key = "test_accuracy"
-            if metric is None:
-                metric = tracker.last_metric(run["id"], "test_nll")
-                key = "test_nll"
-            out.append({**run, "metric": key, "value": metric})
-    return {"runs": out}
-
-
 def main() -> None:
     global ROOT
     parser = argparse.ArgumentParser(prog="blackboard")
-    parser.add_argument("--root", default=".", help="ML-RESEARCH repo root")
+    parser.add_argument(
+        "--root", default="workspace", help="Blackboard workspace directory"
+    )
     parser.add_argument("--port", type=int, default=8321)
     parser.add_argument("--no-browser", action="store_true")
     args = parser.parse_args()
     ROOT = Path(args.root).resolve()
+    ROOT.mkdir(parents=True, exist_ok=True)
 
     import uvicorn
 

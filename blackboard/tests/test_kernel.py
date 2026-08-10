@@ -31,8 +31,8 @@ def test_error_reported_not_raised(kernel):
     assert "ZeroDivisionError" in result.error
 
 
-def test_mlr_is_preloaded(kernel):
-    result = kernel.run("get_distribution('bernoulli').mle([1, 1, 0, 1])")
+def test_numpy_is_preloaded(kernel):
+    result = kernel.run("float(np.mean([1, 1, 0, 1]))")
     assert result.ok and "0.75" in result.value
 
 

@@ -88,11 +88,12 @@ mlr new paper my-idea first-note --assets
 
 ## Blackboard: the studio app
 
-[blackboard/](blackboard/) is our own research-studio app (chalk-on-slate):
-files rail, executable notebook cells with a persistent mlr-preloaded
-kernel, and a LaTeX theory board with one-click compile + PDF preview, plus
-tracked runs from `tracking.db`. Launch with F5 ("blackboard") or
-`blackboard --root .` — serves on localhost and opens the browser.
+[blackboard/](blackboard/) is our own research-studio app (chalk-on-slate),
+fully standalone: it works on its own `blackboard/workspace/` directory
+(gitignored). Files rail with "+ new board", executable notebook cells with
+a persistent kernel, and a LaTeX theory board with one-click compile + PDF
+preview. Launch with F5 ("blackboard") — serves on localhost and opens the
+browser.
 
 ## Studio: the draft space
 

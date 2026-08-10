@@ -105,12 +105,8 @@
   #pdfview { flex: 1; border: 0; background: #efece3; display: none; }
   #texlog { flex: none; max-height: 130px; overflow-y: auto; border-top: 1px dashed var(--edge-soft);
             font: 11px/1.5 var(--mono); color: var(--red); padding: 8px 14px; display: none; white-space: pre-wrap; }
-  #runsbar { flex: none; border-top: 1px solid var(--edge); padding: 10px 14px; }
-  #runsbar .hd { font: 600 10px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
-                 color: var(--chalk-faint); margin-bottom: 6px; }
-  #runsbar table { width: 100%; border-collapse: collapse; font: 11px/1.6 var(--mono); }
-  #runsbar td { color: var(--chalk-dim); padding: 1px 4px; font-variant-numeric: tabular-nums; }
-  #runsbar td.v { color: var(--blue); text-align: right; }
+  #rail .railbtn { margin: 8px 16px 4px; }
+  #rail .empty { padding: 10px 16px; color: var(--chalk-ghost); font: italic 13px/1.5 var(--serif); white-space: normal; }
 
   footer {
     flex: none; display: flex; gap: 18px; align-items: center;
@@ -132,7 +128,11 @@
 </header>
 
 <main>
-  <nav id="rail"><div class="hd">workspace</div><div id="tree">loading…</div></nav>
+  <nav id="rail">
+    <div class="hd">workspace</div>
+    <button class="btn amber railbtn" id="newboard">+ new board</button>
+    <div id="tree">loading…</div>
+  </nav>
 
   <section id="board">
     <div class="addrow">
@@ -151,16 +151,11 @@
     <textarea id="texedit" spellcheck="false" placeholder="open a .tex from the rail — the theory board lives here"></textarea>
     <iframe id="pdfview" title="compiled theory board"></iframe>
     <div id="texlog"></div>
-    <div id="runsbar">
-      <div class="hd">tracked runs</div>
-      <table id="runstable"><tr><td>—</td></tr></table>
-    </div>
   </aside>
 </main>
 
 <footer>
   <span id="rootpath">root: …</span>
-  <span>env ml-research</span>
   <span class="amber" id="texpath">no tex open</span>
 </footer>
 
@@ -280,12 +275,34 @@ async function loadWorkspace() {
   $("rootpath").textContent = "root: " + ws.root;
   const tree = $("tree");
   tree.textContent = "";
-  for (const section of ws.sections) {
-    const hd = document.createElement("div");
-    hd.className = "hd"; hd.textContent = section.name;
-    tree.append(hd, renderTree(section.children, 0));
+  if (!ws.tree.length) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "an empty slate — start a new board above";
+    tree.append(empty);
+    return;
   }
+  tree.append(renderTree(ws.tree, 0));
 }
+
+$("newboard").onclick = async () => {
+  const name = prompt("Board name:");
+  if (!name) return;
+  try {
+    const created = await api("/api/board", { name });
+    await loadWorkspace();
+    const node = [...document.querySelectorAll("#rail .node")]
+      .find((n) => n.dataset.path === created.notebook);
+    await openFile(created.notebook, node);
+    const texNode = [...document.querySelectorAll("#rail .node")]
+      .find((n) => n.dataset.path === created.tex);
+    const file = await api("/api/file?path=" + encodeURIComponent(created.tex));
+    texPath = created.tex;
+    $("texpath").textContent = created.tex;
+    $("texedit").value = file.content;
+    node?.classList.add("on");
+  } catch (err) { alert(err.message || err); }
+};
 
 async function openFile(path, node) {
   document.querySelectorAll("#rail .node.on").forEach((n) => n.classList.remove("on"));
@@ -354,27 +371,8 @@ $("saveall").onclick = async () => {
   setTimeout(() => ($("saveall").textContent = "save"), 1200);
 };
 
-/* ---------- tracked runs ---------- */
-async function loadRuns() {
-  try {
-    const data = await api("/api/runs");
-    const table = $("runstable");
-    table.textContent = "";
-    for (const run of data.runs.slice(-6).reverse()) {
-      const tr = document.createElement("tr");
-      const value = run.value == null ? "—" : run.value.toFixed(4);
-      tr.innerHTML = "";
-      const c1 = document.createElement("td"); c1.textContent = run.id;
-      const c2 = document.createElement("td"); c2.textContent = run.topic + "/" + run.name;
-      const c3 = document.createElement("td"); c3.className = "v"; c3.textContent = value;
-      tr.append(c1, c2, c3);
-      table.append(tr);
-    }
-  } catch { /* tracker optional */ }
-}
-
 /* ---------- boot ---------- */
-loadWorkspace().then(loadRuns);
+loadWorkspace();
 </script>
 </body>
 </html>

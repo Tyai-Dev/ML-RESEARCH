@@ -14,11 +14,22 @@ def client(tmp_path, monkeypatch):
     return TestClient(srv.app)
 
 
-def test_workspace_lists_sections(client):
-    sections = {s["name"]: s for s in client.get("/api/workspace").json()["sections"]}
-    assert "studio" in sections
-    draft = sections["studio"]["children"][0]
+def test_workspace_lists_tree(client):
+    tree = client.get("/api/workspace").json()["tree"]
+    studio = next(n for n in tree if n["name"] == "studio")
+    draft = studio["children"][0]
     assert draft["dir"] and draft["children"][0]["name"] == "main.tex"
+
+
+def test_new_board_creates_pair(client):
+    created = client.post("/api/board", json={"name": "My First Board"}).json()
+    assert created["created"] == "my-first-board"
+    nb = client.get("/api/notebook", params={"path": created["notebook"]}).json()
+    assert nb["cells"][0]["source"] == "# My First Board"
+    tex = client.get("/api/file", params={"path": created["tex"]}).json()["content"]
+    assert "\\title{My First Board}" in tex
+    assert "papers-common" not in tex  # standalone — no MLR coupling
+    assert client.post("/api/board", json={"name": "my first board"}).status_code == 409
 
 
 def test_file_roundtrip(client):

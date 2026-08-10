@@ -33,3 +33,6 @@ studio/**/*.pdf
 
 # JupyterLab cache
 .virtual_documents/
+
+# Blackboard personal workspace (your boards, not the app)
+blackboard/workspace/
