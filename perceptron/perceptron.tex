@@ -1,0 +1,133 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}{Remark}
+
+\title{The Perceptron:\\
+Distribution-Free Learning and the Mistake Bound}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Everything before this note assumed a conditional distribution and
+maximized its likelihood. The perceptron assumes \emph{nothing}: no
+$p(x)$, no noise model, not even that examples are random --- an
+adversary may choose them. What replaces the statistical guarantees is a
+\emph{mistake bound}: on any stream separable with margin $\gamma$ inside
+radius $R$, the perceptron makes at most $(R/\gamma)^2$ mistakes, ever.
+We state the algorithm (binary and multiclass), prove Novikoff's theorem
+in full, and demonstrate bound, convergence, and the non-separable
+failure mode in \texttt{perceptron.py}.
+\end{abstract}
+
+\section{The online, distribution-free setting}
+
+Labels $y \in \{-1,+1\}$; examples $(x_t, y_t)$ arrive one at a time, in
+any order, chosen by nature or an adversary. The learner maintains a
+linear predictor $w$ and pays for every \emph{mistake}
+($y_t \ne \operatorname{sign}(w^\top x_t)$). There is no distribution to
+be consistent for and no risk to converge to; the object of analysis is
+the cumulative mistake count. This is the learning-theory note's
+worst-case spirit taken all the way: not worst distribution ---
+\emph{worst sequence}.
+
+\section{The algorithm}
+
+Initialize $w_1 = 0$. At step $t$, predict
+$\hat y_t = \operatorname{sign}(w_t^\top x_t)$; if
+$y_t\, w_t^\top x_t \le 0$ (a mistake), update
+\begin{equation}
+  w_{t+1} \;=\; w_t + y_t\, x_t ,
+  \label{eq:update}
+\end{equation}
+otherwise leave $w$ unchanged. The update is pure error correction:
+after it, $y_t\, w_{t+1}^\top x_t = y_t w_t^\top x_t + \lVert
+x_t\rVert^2$ --- the offending example's margin moves up by
+$\lVert x_t\rVert^2$. (It is also SGD with step 1 on a perceptron loss
+$\max(0, -y\,w^\top x)$; the losses note places it in that family.)
+
+\section{The mistake bound}
+
+\begin{theorem}[Novikoff]
+Suppose some unit vector $u$ separates the stream with margin $\gamma$:
+$y_t\, u^\top x_t \ge \gamma$ for all $t$, and $\lVert x_t\rVert \le R$.
+Then the perceptron makes at most
+\begin{equation}
+  \boxed{\;M \;\le\; \Bigl(\frac{R}{\gamma}\Bigr)^{2}\;}
+  \label{eq:novikoff}
+\end{equation}
+mistakes on the stream, regardless of its length or order.
+\end{theorem}
+
+\begin{proof}
+Only mistake steps change $w$; let $M$ be their number and consider $w$
+after the $M$-th mistake. Two quantities race.
+
+\emph{Progress along $u$ grows linearly.} Each mistake adds
+$y_t u^\top x_t \ge \gamma$ to $u^\top w$:
+\begin{equation*}
+  u^\top w \;=\; \sum_{\text{mistakes}} y_t\, u^\top x_t \;\ge\; M\gamma .
+\end{equation*}
+
+\emph{The norm grows at most linearly.} On a mistake,
+$y_t w^\top x_t \le 0$, so
+\begin{equation*}
+  \lVert w + y_t x_t\rVert^2
+  = \lVert w\rVert^2 + 2 y_t w^\top x_t + \lVert x_t\rVert^2
+  \le \lVert w\rVert^2 + R^2 ,
+\end{equation*}
+hence $\lVert w\rVert^2 \le M R^2$ after $M$ mistakes.
+
+\emph{Cauchy--Schwarz squeezes.} Since $\lVert u\rVert = 1$,
+\begin{equation*}
+  M\gamma \;\le\; u^\top w \;\le\; \lVert w\rVert \;\le\; \sqrt{M}\,R
+  \quad\Longrightarrow\quad
+  \sqrt{M} \le R/\gamma
+  \quad\Longrightarrow\quad
+  M \le (R/\gamma)^2 . \qedhere
+\end{equation*}
+\end{proof}
+
+Read it: the bound involves \emph{only geometry} --- margin and radius
+--- not the dimension, not the number of examples, not any probability.
+A million points or ten, random order or adversarial: at most
+$(R/\gamma)^2$ corrections. The script's separable run makes a few dozen
+mistakes against a bound of a few hundred, then completes a clean pass.
+
+\begin{remark}[Non-separable data: the failure mode]
+If no margin exists, the theorem's premise fails and so does the
+algorithm's behavior: updates never cease (the script's noisy run shows
+mistakes accumulating linearly, forever). The perceptron has no notion of
+``good enough'' --- every mistake triggers the same full-strength
+correction, including on hopeless (mislabeled) points. Handling
+non-separability by \emph{bounding} the correction is exactly the
+Passive-Aggressive family; handling it by \emph{trading} margin against
+slack is the SVM. Both next.
+\end{remark}
+
+\section{Multiclass perceptron}
+
+One weight vector per class, prediction by best score:
+$\hat y = \arg\max_k w_k^\top x$. On a mistake, promote the truth and
+demote the pretender:
+\begin{equation}
+  w_{y} \leftarrow w_{y} + x,
+  \qquad
+  w_{\hat y} \leftarrow w_{\hat y} - x .
+  \label{eq:multiupdate}
+\end{equation}
+The binary case is recovered with $w = w_{+1} - w_{-1}$ (the two updates
+collapse into \eqref{eq:update}), and a Novikoff-type bound holds with
+the multiclass margin
+$\gamma = \min_t \bigl(w^\ast_{y_t} - \max_{k\ne y_t} w^\ast_k\bigr)^\top
+x_t$ playing the same role. The same promote/demote shape is softmax
+regression's gradient $(p - e_y)\otimes x$ hardened: probabilities
+replaced by a single all-or-nothing correction --- the perceptron is the
+zero-temperature limit of the statistical model it abandoned.
+
+\end{document}

@@ -1,0 +1,152 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Support Vector Machines:\\
+Margin Maximization, KKT, and the Hinge}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The SVM is the batch form of the margin idea: among all separating
+hyperplanes, pick the one farthest from the data; when separation is
+imperfect, trade margin width against violations. We derive the
+hard-margin program from the geometry, apply the KKT conditions of the
+optimization note to obtain the signature structural fact --- the
+solution is carried by the \emph{support vectors} alone --- introduce the
+soft margin and its equivalent hinge-loss form, and optimize the latter
+with Pegasos (subgradient SGD). \texttt{svm.py} verifies the optimum, the
+support-vector property (by deletion experiments), and compares the
+boundary with logistic regression's.
+\end{abstract}
+
+\section{Hard margin: the geometry}
+
+Labels $y_i \in \{-1,+1\}$, predictor
+$\operatorname{sign}(w^\top x + b)$. The distance of $x_i$ from the
+hyperplane $\{w^\top x + b = 0\}$ is
+$y_i(w^\top x_i + b)/\lVert w\rVert$ (positive iff correctly classified).
+Maximizing the smallest such distance is, after normalizing the scale
+freedom $(w,b) \to (cw, cb)$ by \emph{fixing the closest point's
+functional margin to 1}, the program
+\begin{equation}
+  \min_{w,b}\;\; \tfrac12\lVert w\rVert^2
+  \qquad\text{s.t.}\qquad
+  y_i\,(w^\top x_i + b) \;\ge\; 1, \quad i = 1,\dots,n ,
+  \label{eq:hard}
+\end{equation}
+whose geometric margin is $1/\lVert w\rVert$ --- minimizing the norm
+\emph{is} maximizing the margin. A convex quadratic program with linear
+constraints: exactly the setting of the KKT theorem.
+
+\section{KKT: the support vectors}
+
+\begin{proposition}
+At the optimum of \eqref{eq:hard} with multipliers $\alpha_i \ge 0$,
+\begin{equation}
+  \boxed{\;w^\ast \;=\; \sum_{i=1}^n \alpha_i\, y_i\, x_i,
+  \qquad
+  \alpha_i > 0 \;\Longrightarrow\; y_i\,(w^{\ast\top} x_i + b^\ast) = 1 .\;}
+  \label{eq:kkt}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+The Lagrangian is $\tfrac12\lVert w\rVert^2 - \sum_i \alpha_i
+\bigl(y_i(w^\top x_i + b) - 1\bigr)$. Stationarity in $w$ gives
+$w = \sum_i \alpha_i y_i x_i$; stationarity in $b$ gives
+$\sum_i \alpha_i y_i = 0$; and complementary slackness
+$\alpha_i\bigl(y_i(w^\top x_i + b) - 1\bigr) = 0$ forces $\alpha_i = 0$
+for every point with margin strictly above 1.
+\end{proof}
+
+Points beyond the margin are \emph{invisible} to the solution: only the
+\emph{support vectors} --- those on (or, later, inside) the margin ---
+have $\alpha_i > 0$ and enter $w^\ast$. The script tests this
+operationally in the soft-margin form: removing every non-support point
+(keeping the original $1/n$ weighting, so the loss--regularizer balance
+is untouched --- their hinge terms are identically zero near $w^\ast$, so
+the objective is locally unchanged) leaves the refitted optimum within
+subgradient noise of $w^\ast$, while removing the support vectors moves
+it by an order of magnitude more. Sparsity in \emph{examples} is the
+SVM's signature, exactly as complementary slackness promised in the
+optimization note.
+
+\section{Soft margin and the hinge form}
+
+Real data overlaps; \eqref{eq:hard} is then infeasible. Introduce slacks
+$\xi_i \ge 0$ measuring each violation and price them:
+\begin{equation}
+  \min_{w,b,\xi}\;\; \tfrac12\lVert w\rVert^2 + C\sum_i \xi_i
+  \qquad\text{s.t.}\qquad
+  y_i(w^\top x_i + b) \ge 1 - \xi_i,\;\; \xi_i \ge 0 .
+  \label{eq:soft}
+\end{equation}
+At the optimum $\xi_i = \max\bigl(0,\, 1 - y_i(w^\top x_i + b)\bigr)$
+--- the \emph{hinge loss} --- so \eqref{eq:soft} is equivalent to the
+unconstrained regularized risk
+\begin{equation}
+  \min_{w,b}\;\;
+  \frac{\lambda}{2}\lVert w\rVert^2
+  + \frac1n\sum_{i=1}^n \max\bigl(0,\; 1 - y_i(w^\top x_i + b)\bigr),
+  \qquad \lambda = \tfrac{1}{Cn},
+  \label{eq:hinge}
+\end{equation}
+margin geometry re-expressed as \emph{loss + regularizer} --- the form
+the losses note studies, and the bridge from the constrained world of
+\eqref{eq:hard} to ordinary (sub)gradient training. KKT survives the
+generalization: support vectors are now the points with
+$y_i f(x_i) \le 1$ (on or inside the margin, including violators), still
+typically a small fraction of the data.
+
+\section{Optimization: subgradients and Pegasos}
+
+The hinge is convex but has a kink at margin 1, so gradients give way to
+\emph{subgradients}: any slope between the two one-sided slopes is valid
+at the kink, and subgradient descent retains convex convergence
+guarantees (at kink-free points the subgradient is the gradient;
+$-y_i x_i$ works on the violating side, $0$ on the satisfied side).
+Pegasos is SGD on \eqref{eq:hinge} with the schedule
+$\eta_t = 1/(\lambda t)$:
+\begin{equation}
+  w_{t+1} \;=\; (1 - \eta_t\lambda)\, w_t
+  \;+\; \eta_t\, y_{i_t} x_{i_t}\,
+  \mathbf{1}\bigl[y_{i_t} w_t^\top x_{i_t} < 1\bigr] ,
+  \label{eq:pegasos}
+\end{equation}
+a shrink step (the regularizer, pulling toward larger margin) plus a
+perceptron-style correction on margin violators only. Note the family
+resemblance across the last three notes: perceptron corrects mistakes by
+a fixed step; PA corrects margin violations by an optimized step; Pegasos
+corrects margin violations by a decaying step while shrinking --- three
+tempos of the same drum. $\tilde O(1/(\lambda\varepsilon))$ iterations
+suffice for $\varepsilon$-accuracy, independent of $n$: the script's
+Pegasos run matches a long full-batch subgradient reference to the third
+decimal, and random perturbation finds no improvement.
+
+\begin{remark}[SVM vs logistic regression]
+On the script's overlapping Gaussians the two boundaries nearly agree,
+but the philosophies differ: logistic regression models
+$\Pr(Y{=}1|x)$ and uses \emph{every} point (weighted by $p(1-p)$); the
+SVM makes no probabilistic claim, outputs no calibrated probability, and
+listens only to the margin's neighborhood. Hinge vs log-loss is the
+precise version of this contrast --- see the losses note.
+\end{remark}
+
+\begin{remark}[Kernels, in one paragraph]
+By \eqref{eq:kkt}, both training (in the dual) and prediction
+($w^{\ast\top}x = \sum_i \alpha_i y_i\, x_i^\top x$) touch the data only
+through inner products $x_i^\top x_j$. Replacing them by a kernel
+$k(x_i, x_j) = \langle\phi(x_i),\phi(x_j)\rangle$ runs the same linear
+machinery in an implicit feature space --- nonlinear boundaries with no
+explicit feature map. That door, opened by the dual's structure, is a
+note for another day.
+\end{remark}
+
+\end{document}

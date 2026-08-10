@@ -1,0 +1,131 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Passive-Aggressive Algorithms:\\
+Online Learning as a Per-Step Optimization}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The perceptron corrects every mistake by the same fixed amount. The
+Passive-Aggressive family (Crammer, Dekel, Keshet, Shalev-Shwartz \&
+Singer, 2006) instead \emph{solves a tiny constrained optimization at
+every step}: stay as close as possible to the current weights while
+satisfying the incoming example's margin constraint. The KKT machinery of
+the optimization note delivers a closed-form step size, and two damped
+variants (PA-I, PA-II) buy noise robustness. Binary and multiclass
+versions, with the closed form verified against brute force and the
+noise-robustness race run in \texttt{pa.py}.
+\end{abstract}
+
+\section{The idea: passive when satisfied, aggressive when not}
+
+Labels $y \in \{-1,+1\}$; margin target $1$ via the hinge loss
+$\ell_t(w) = \max\bigl(0,\; 1 - y_t\, w^\top x_t\bigr)$. On each example
+solve
+\begin{equation}
+  w_{t+1} \;=\; \arg\min_{w}\; \tfrac12\lVert w - w_t\rVert^2
+  \quad\text{s.t.}\quad \ell_t(w) = 0 .
+  \label{eq:paproblem}
+\end{equation}
+Two regimes by construction. \emph{Passive}: if $\ell_t(w_t) = 0$ the
+current weights are feasible and optimal --- no update, unlike SGD, which
+nudges on every sample. \emph{Aggressive}: otherwise, make the minimal
+change that fully satisfies the example. The learner is a sequence of
+projections onto half-spaces of ``examples I now respect.''
+
+\section{The closed form via KKT}
+
+\begin{proposition}
+When $\ell_t(w_t) > 0$, the solution of \eqref{eq:paproblem} is
+\begin{equation}
+  \boxed{\;w_{t+1} \;=\; w_t + \tau_t\, y_t\, x_t,
+  \qquad
+  \tau_t \;=\; \frac{\ell_t(w_t)}{\lVert x_t\rVert^2}.\;}
+  \label{eq:pastep}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+With the constraint active ($y_t w^\top x_t = 1$), the Lagrangian is
+$\tfrac12\lVert w-w_t\rVert^2 + \tau\,(1 - y_t w^\top x_t)$ with
+multiplier $\tau \ge 0$. Stationarity in $w$:
+$w - w_t - \tau y_t x_t = 0$, so $w = w_t + \tau y_t x_t$ --- the update
+direction is forced; only its length is free. Substitute into the active
+constraint:
+$y_t w_t^\top x_t + \tau \lVert x_t\rVert^2 = 1$, i.e.\
+$\tau = (1 - y_t w_t^\top x_t)/\lVert x_t\rVert^2 =
+\ell_t(w_t)/\lVert x_t\rVert^2 > 0$, consistent with dual feasibility;
+complementary slackness holds since the constraint is met with equality.
+\end{proof}
+
+The perceptron's update is \eqref{eq:pastep} with $\tau$ hard-coded to
+$1$; PA sizes the correction by how badly the example is violated,
+normalized by its length --- large enough to fix it exactly, never
+larger.
+
+\section{Noise: PA-I and PA-II}
+
+Aggressiveness is a liability under label noise: a mislabeled example
+forces \eqref{eq:paproblem} to satisfy a \emph{wrong} constraint fully,
+however far that drags $w$ (the script's race shows plain PA losing to
+the perceptron on a noisy stream). The fix is to let the constraint be
+violated at a price --- add a slack variable $\xi \ge 0$, exactly the
+soft-margin move of the SVM note:
+\begin{align}
+  \text{PA-I:}\quad
+  &\min_{w,\xi}\; \tfrac12\lVert w-w_t\rVert^2 + C\,\xi
+  \;\;\text{s.t.}\; \ell_t(w) \le \xi
+  &&\Longrightarrow\;
+  \tau_t = \min\Bigl(C,\; \frac{\ell_t(w_t)}{\lVert x_t\rVert^2}\Bigr),
+  \label{eq:pai}\\
+  \text{PA-II:}\quad
+  &\min_{w,\xi}\; \tfrac12\lVert w-w_t\rVert^2 + C\,\xi^2
+  \;\;\text{s.t.}\; \ell_t(w) \le \xi
+  &&\Longrightarrow\;
+  \tau_t = \frac{\ell_t(w_t)}{\lVert x_t\rVert^2 + \tfrac{1}{2C}} ,
+  \label{eq:paii}
+\end{align}
+(derivations: same Lagrangian with the extra $\xi$ term; the linear
+penalty caps the multiplier at $C$, the quadratic one shrinks it).
+$C$ is the trust budget per example: $C \to \infty$ recovers plain PA;
+small $C$ means no single example --- honest or mislabeled --- can move
+$w$ far. In the script's race (7\% flipped labels), PA-I with $C = 0.1$
+recovers a clean-test error near the noise floor while plain PA thrashes.
+
+\section{Multiclass PA}
+
+Score with one vector per class; require the true class to beat the best
+wrong class by margin 1. With
+$\ell_t = \max\bigl(0,\, 1 - (w_{y_t} - w_{\hat k})^\top x_t\bigr)$ where
+$\hat k$ is the highest-scoring wrong class, the same derivation (the
+change now lives in two rows, whence the factor 2) gives
+\begin{equation}
+  w_{y_t} \mathrel{+}= \tau_t x_t,
+  \qquad
+  w_{\hat k} \mathrel{-}= \tau_t x_t,
+  \qquad
+  \tau_t = \min\Bigl(C,\; \frac{\ell_t}{2\lVert x_t\rVert^2}\Bigr).
+  \label{eq:pamulti}
+\end{equation}
+Promote the truth, demote the pretender --- the multiclass perceptron's
+shape with an optimized step, and one more instance of the ladder this
+repository keeps climbing: softmax's soft $(p - e_y)$, the perceptron's
+hard $\pm 1$, PA's ``exactly as hard as needed.''
+
+\begin{remark}[Guarantees]
+PA's analysis is regret-style, in the perceptron tradition: e.g.\ for
+separable streams PA enjoys a $(R/\gamma)^2$-type mistake bound, and
+PA-I/PA-II admit bounds that degrade gracefully with the cumulative
+hinge loss of the best fixed predictor in hindsight --- competing with an
+oracle, not estimating a distribution. Distribution-free to the end.
+\end{remark}
+
+\end{document}
