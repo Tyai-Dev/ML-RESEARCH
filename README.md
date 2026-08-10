@@ -25,6 +25,12 @@ equation.
 | `gaussian/` | 1D normal MLE for (mu, sigma): same four routes; the MLE variance is the biased 1/n estimator |
 | `linear-regression/` | Normal equations vs GD/SGD, and why the closed form is not always the right tool (cost, conditioning — with a float32 demo where normal equations lose to QR by 4000x — streaming, generality) |
 | `logistic-regression/` | The conditional-Bernoulli view of classification: Y\|X=x ~ Bernoulli(p(x)), linear log-odds, conditional MLE. First model with no closed form (transcendental stationarity) — solved by Newton/IRLS in 8 steps vs GD's 3000; separable-data MLE nonexistence; fitted classifier hits the Bayes floor to 3 decimals |
+| `poisson/` | Count data: Y\|x ~ Poisson(exp(w·x)); gradient (λ−y)x; Newton/IRLS — and the GLM unification theorem: canonical link ⇒ gradient = (mean − y)·x for the whole family |
+| `softmax-regression/` | Bernoulli → multinoulli: Y\|x ~ Multinoulli(softmax(Wx)); cross-entropy gradient (softmax − onehot)⊗x; identifiability up to row-shift; multiclass Bayes floor E[1 − max p] met |
+| `multi-output-regression/` | Linear → multivariate Gaussian: vector response, Frobenius loss separates per column so the closed form survives; SUR collapse; the one-hot "linearization trick" and its broken probabilities |
+| `perceptron/` | Distribution-free: online mistakes, no p(x). Novikoff's (R/γ)² bound proved and verified; multiclass promote/demote; noise breaks convergence forever |
+| `passive-aggressive/` | Online learning as per-step optimization: min ‖w−w_t‖² s.t. hinge = 0, closed form via KKT (verified vs brute force); PA-I/PA-II noise robustness raced; multiclass PA |
+| `svm/` | Margin maximization: hard margin from geometry, KKT ⇒ support vectors (dropping 1324 non-SVs moves w by 0.0000; dropping 176 SVs by 0.25), soft margin = hinge + L2, Pegasos, logistic comparison, kernel remark |
 
 ## Theory (reference pages)
 
@@ -36,3 +42,4 @@ equation.
 | `Theory/statistics/` | Estimators, bias/variance, MSE decomposition, sufficiency & factorization, Fisher information, Cramér–Rao (Bernoulli MLE shown efficient), MLE asymptotics |
 | `Theory/optimization/` | When does grad = 0 solve a problem: stationarity, saddles, convexity (strong/smooth/bounded), Lagrange multipliers, KKT conditions |
 | `Theory/information-theory/` | Entropy, KL & Gibbs' inequality, cross-entropy = entropy + KL, MLE = KL minimization (verified to 1e-12), mutual information |
+| `Theory/losses/` | The loss catalogue: 0-1 and its convex surrogates (hinge, logistic, exponential, squared), calibration — what each minimizer remembers (logit(p) / 2p−1 / sign, verified numerically), regression losses and robustness (mean vs median vs Huber under outliers), the choosing table |

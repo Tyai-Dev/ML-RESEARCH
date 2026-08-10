@@ -1,0 +1,168 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Loss Functions:\\
+Surrogates, Calibration, and What Each Loss Remembers}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+Every model in this repository is ``a loss plus an optimizer.'' This page
+is the loss catalogue: what each one is, where it comes from, what its
+population minimizer \emph{remembers} about the data, and how it treats
+outliers. \texttt{losses\_demo.py} verifies the quantitative claims.
+
+\section{The loss we mean, and the losses we use}
+
+For classification the loss we \emph{care about} is the 0-1 loss
+$\mathbf{1}[h(x) \ne y]$ --- the learnability note's object. We rarely
+optimize it directly: it is discontinuous, non-convex, and ERM under it
+is NP-hard for most classes. Instead we minimize a \emph{surrogate}: a
+convex loss whose minimization is tractable and whose minimizer still
+classifies correctly. The whole catalogue below is organized by this
+divide --- the true loss, and the roofs we build over it.
+
+\section{Margin losses for binary classification}
+
+With $y \in \{-1,+1\}$ and a real-valued score $f(x)$, every loss below
+depends only on the \emph{margin} $m = y\,f(x)$ (positive iff correct,
+large iff confidently correct):
+\begin{equation}
+  \ell_{01} = \mathbf{1}[m \le 0], \quad
+  \ell_{\mathrm{hinge}} = \max(0, 1-m), \quad
+  \ell_{\mathrm{log}} = \log\bigl(1 + e^{-m}\bigr), \quad
+  \ell_{\exp} = e^{-m},
+  \label{eq:marginlosses}
+\end{equation}
+plus the squared hinge $\max(0,1-m)^2$ and the squared loss $(1-m)^2$.
+Provenance: hinge is the SVM's slack (svm note); the logistic loss
+\emph{is} the Bernoulli NLL in $\pm1$ convention ($\log(1+e^{-yf})
+= -\log\sigma(yf)$ --- cross-entropy, the MLE notes); the exponential
+loss is AdaBoost's; the perceptron loss $\max(0,-m)$ drives the
+perceptron update. All the convex members dominate the 0-1 loss
+pointwise ($\ell \ge \ell_{01}$, asserted on a grid in the script), so
+small surrogate risk forces small classification risk:
+$\Pr(\mathrm{error}) \le \mathbb{E}[\ell(m)]$.
+
+\section{Calibration: what the minimizer remembers}
+
+The deeper question about a surrogate: at a point $x$ with
+$p = \Pr(Y{=}+1|x)$, what score does minimizing the \emph{population}
+risk $p\,\ell(f) + (1-p)\,\ell(-f)$ produce?
+
+\begin{proposition}[Population minimizers]
+\begin{equation}
+  f^\ast_{\mathrm{log}} = \log\frac{p}{1-p},
+  \qquad
+  f^\ast_{\mathrm{sq}} = 2p - 1,
+  \qquad
+  f^\ast_{\mathrm{hinge}} = \operatorname{sign}(2p - 1),
+  \qquad
+  f^\ast_{\exp} = \tfrac12\log\frac{p}{1-p}.
+  \label{eq:calibration}
+\end{equation}
+\end{proposition}
+(Each by setting the derivative of $p\,\ell(f) + (1-p)\,\ell(-f)$ to
+zero; the script confirms all four numerically.) Read the hierarchy:
+\begin{itemize}
+  \item \textbf{Logistic}: $\sigma(f^\ast) = p$ --- the full conditional
+    probability survives. Minimizing log-loss \emph{is} estimating
+    $p(x)$; this is why logistic regression is calibrated and why
+    cross-entropy owns probabilistic ML.
+  \item \textbf{Squared}: $p$ is recoverable ($p = (f^\ast+1)/2$), but
+    the loss keeps penalizing beyond $m > 1$ --- confidently correct
+    points are punished, dragging boundaries (multi-output note's
+    one-hot trick defect).
+  \item \textbf{Hinge}: only $\operatorname{sign}(2p-1)$ survives ---
+    the \emph{class}, not the probability. SVM scores are not
+    calibrated; in exchange, the flat region ($\ell = 0$ for $m \ge 1$)
+    ignores confident points entirely, producing the support-vector
+    sparsity.
+\end{itemize}
+All of them are \emph{classification-calibrated}
+($\operatorname{sign} f^\ast = \operatorname{sign}(p - \tfrac12)$, the
+Bayes rule): minimizing any of these surrogates over rich enough
+classes drives the 0-1 risk to the Bayes risk (Bartlett--Jordan--
+McAuliffe). You choose among them by what you need to
+\emph{keep} --- probabilities, sparsity, or simplicity --- not by
+correctness.
+
+\section{Regression losses: location and robustness}
+
+For residual $r = y - f(x)$:
+\begin{equation}
+  \ell_{\mathrm{sq}} = \tfrac12 r^2,
+  \qquad
+  \ell_{\mathrm{abs}} = |r|,
+  \qquad
+  \ell_{\mathrm{Huber},\delta} =
+  \begin{cases}
+    \tfrac12 r^2 & |r| \le \delta\\[2pt]
+    \delta\bigl(|r| - \tfrac{\delta}{2}\bigr) & |r| > \delta ,
+  \end{cases}
+  \label{eq:reglosses}
+\end{equation}
+plus the $\varepsilon$-insensitive $\max(0, |r|-\varepsilon)$ of SVR.
+Their population minimizers are the classical location statistics:
+squared $\to$ conditional \emph{mean} (the Gaussian MLE note), absolute
+$\to$ conditional \emph{median}, Huber $\to$ in between. That single
+fact is the robustness story: a gross outlier contributes $O(r^2)$ to
+squared loss but only $O(|r|)$ to absolute and Huber --- the script fits
+a constant to data with $10\%$ gross outliers, and the squared fit is
+dragged to $9.5$ while absolute and Huber stay at the bulk's $5.0$.
+Huber keeps the squared loss's smoothness and statistical efficiency
+near zero while capping the influence of the tails --- the standard
+compromise.
+
+\section{Steepness is a personality trait}
+
+For $m < 0$ (mistakes), compare growth: hinge is linear, logistic is
+asymptotically linear, exponential is \emph{exponential}. The script
+prints the penalty a badly mislabeled point pays at score $|f| = 10$:
+hinge $11$, exponential $e^{10} \approx 22000$ --- AdaBoost's
+exquisite outlier sensitivity in one number. Flat-side behavior matters
+too: hinge is exactly $0$ for $m \ge 1$ (satisfied points are ignored:
+sparsity, PA's ``passive''), while logistic never reaches zero (every
+point keeps voting: no support-vector structure, but calibrated
+probabilities). Steep left side = aggressive on errors; flat right side
+= indifferent to safe points; every loss in \eqref{eq:marginlosses} is a
+different setting of those two dials.
+
+\section{Choosing, in one table}
+
+\begin{center}
+\begin{tabular}{lllll}
+\toprule
+loss & convex & minimizer remembers & outlier response & used by\\
+\midrule
+0-1 & no & the class & indifferent & the target itself\\
+hinge & yes & the class & linear & SVM, PA\\
+squared hinge & yes & class (+ margin) & quadratic & smooth SVMs\\
+logistic / CE & yes & the probability & $\sim$linear & GLMs, deep nets\\
+exponential & yes & $\tfrac12$ log-odds & exponential & AdaBoost\\
+squared (cls.) & yes & $2p-1$ & quadratic (both sides!) & one-hot LS\\
+\midrule
+squared (reg.) & yes & mean & quadratic & OLS, Gaussian MLE\\
+absolute & yes & median & linear & robust regression\\
+Huber & yes & mean$\leftrightarrow$median & quad.\ then linear & robust default\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent
+One sentence to keep: \emph{a loss function is a statement about which
+mistakes you fear and what information you want the minimizer to
+retain} --- probabilities (logistic), the decision alone (hinge), or a
+robust location (absolute/Huber); everything else in this repository is
+the machinery for descending it.
+
+\end{document}
