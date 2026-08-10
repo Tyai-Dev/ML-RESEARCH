@@ -31,7 +31,7 @@ equation.
 |---|---|
 | `Theory/distributions/` | Bernoulli, multinoulli, normal, multivariate normal: densities, moments, MLEs, sufficient statistics — every moment formula verified by sampling |
 | `Theory/optimizers/` | Newton–Raphson, GD, heavy ball, Nesterov, BFGS/L-BFGS, AdaGrad, RMSProp, Adam(W): update rules + all implemented and raced on Rosenbrock |
-| `Theory/learning-theory/` | LLN (weak/strong, beyond-iid remarks), Hoeffding, Azuma–Hoeffding, Glivenko–Cantelli & GC classes, VC, PAC learnability & sample complexity |
+| `Theory/learning-theory/` | Two documents: `learning-theory.tex` — LLN, Hoeffding, Azuma, Glivenko–Cantelli & GC classes; `learnability.tex` — self-contained Learnability à la Shalev-Shwartz & Ben-David (UML Part I): formal model, ERM & overfitting, PAC with full finite-class proofs, uniform convergence, No-Free-Lunch, VC dimension, Sauer, the Fundamental Theorem — with a demo measuring the 1/m and 1/√m rates and a margin-condition surprise |
 | `Theory/statistics/` | Estimators, bias/variance, MSE decomposition, sufficiency & factorization, Fisher information, Cramér–Rao (Bernoulli MLE shown efficient), MLE asymptotics |
 | `Theory/optimization/` | When does grad = 0 solve a problem: stationarity, saddles, convexity (strong/smooth/bounded), Lagrange multipliers, KKT conditions |
 | `Theory/information-theory/` | Entropy, KL & Gibbs' inequality, cross-entropy = entropy + KL, MLE = KL minimization (verified to 1e-12), mutual information |

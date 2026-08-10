@@ -1,0 +1,363 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}{Lemma}
+\newtheorem{corollary}{Corollary}
+\newtheorem{definition}{Definition}
+\newtheorem{example}{Example}
+\newtheorem{remark}{Remark}
+
+\newcommand{\X}{\mathcal{X}}
+\newcommand{\Y}{\mathcal{Y}}
+\newcommand{\D}{\mathcal{D}}
+\newcommand{\Hyp}{\mathcal{H}}
+\newcommand{\err}{L_{\D}}
+\newcommand{\emperr}{L_{S}}
+\newcommand{\VC}{\mathrm{VCdim}}
+
+\title{Learnability}
+\author{Yuval Lavie\\[2pt]
+\small following Shalev-Shwartz \& Ben-David,
+\emph{Understanding Machine Learning} (2014), Part I}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+When is a learning problem solvable from finitely many examples, and what
+does the answer depend on? This note develops the answer end to end:
+the formal model and ERM, why unrestricted learning overfits, PAC
+learnability with a complete proof for finite classes, uniform convergence
+as the engine behind agnostic learning, the No-Free-Lunch theorem (there
+is no universal learner), and the VC dimension, which characterizes
+learnability exactly. Companion experiments:
+\texttt{learnability\_demo.py} exhibits the memorizer overfitting, the
+impossibility of shattering two points with thresholds, and the two
+learning rates $1/m$ and $1/\sqrt{m}$ of the Fundamental Theorem.
+\end{abstract}
+
+\section{The formal model}
+
+\begin{definition}[The learning problem]
+A \emph{domain} $\X$ (instances), a \emph{label set} $\Y = \{0,1\}$, and
+an unknown distribution $\D$ over $\X \times \Y$. The learner receives a
+\emph{training sample} $S = \bigl((x_1,y_1),\dots,(x_m,y_m)\bigr)$ drawn
+i.i.d.\ from $\D$, and must output a \emph{hypothesis}
+$h:\X \to \Y$. Its quality is the \emph{true risk} (generalization error)
+and its observable proxy, the \emph{empirical risk}:
+\begin{equation}
+  \err(h) \;=\; \Pr_{(x,y)\sim\D}\bigl[h(x)\ne y\bigr],
+  \qquad
+  \emperr(h) \;=\; \frac1m\,\bigl|\{\,i : h(x_i)\ne y_i\,\}\bigr| .
+  \label{eq:risks}
+\end{equation}
+\end{definition}
+
+The learner never sees $\D$; everything it knows is $S$. In the
+\emph{realizable} setting one additionally assumes a true labeling
+function $f$ with $y = f(x)$ and some hypothesis achieving zero risk; the
+general (\emph{agnostic}) setting assumes nothing.
+
+\begin{definition}[Empirical Risk Minimization]
+Given a \emph{hypothesis class} $\Hyp \subseteq \Y^{\X}$ chosen before
+seeing data, the ERM rule outputs
+\begin{equation}
+  h_S \;\in\; \arg\min_{h\in\Hyp} \emperr(h) .
+  \label{eq:erm}
+\end{equation}
+\end{definition}
+
+\section{Why restrict $\Hyp$ at all: overfitting}
+
+Let ERM range over \emph{all} functions. Consider the memorizer
+\begin{equation*}
+  h_S(x) =
+  \begin{cases}
+    y_i & \text{if } x = x_i \text{ for some } i,\\
+    0 & \text{otherwise.}
+  \end{cases}
+\end{equation*}
+Its empirical risk is $0$ by construction. But if $\X$ is continuous and
+$\D$ has a density, a fresh $x$ almost surely differs from every training
+point, so $h_S$ predicts the constant $0$ on all new data --- with, e.g.,
+$\err(h_S) = \tfrac12$ when labels are balanced. Perfect memory, zero
+learning (first panel of the demo). The conclusion is structural, not a
+technicality: \emph{some prior restriction --- an inductive bias --- is
+necessary}. Sections 5--6 make this precise (No-Free-Lunch) and quantify
+exactly how much restriction is needed (VC dimension).
+
+\section{PAC learnability, and the finite realizable case}
+
+\begin{definition}[PAC learnability, realizable]
+$\Hyp$ is \emph{PAC learnable} if there exist a function
+$m_{\Hyp}(\varepsilon,\delta)$ and a learner such that for every
+$\varepsilon,\delta\in(0,1)$ and every realizable $\D$: given
+$m \ge m_{\Hyp}(\varepsilon,\delta)$ i.i.d.\ examples, the output $h_S$
+satisfies
+\begin{equation}
+  \Pr\bigl[\err(h_S) \le \varepsilon\bigr] \;\ge\; 1-\delta .
+  \label{eq:pac}
+\end{equation}
+\end{definition}
+\emph{Probably} ($1-\delta$, over the random draw of $S$)
+\emph{Approximately} ($\varepsilon$) \emph{Correct}. Both slacks are
+unavoidable: a finite sample can be unlucky ($\delta$) and can never pin
+$\D$ down exactly ($\varepsilon$).
+
+\begin{theorem}[Finite classes are PAC learnable]
+\label{thm:finite}
+Every finite $\Hyp$ is PAC learnable by ERM with sample complexity
+\begin{equation}
+  m_{\Hyp}(\varepsilon,\delta)
+  \;\le\;
+  \Bigl\lceil \frac{\log\bigl(|\Hyp|/\delta\bigr)}{\varepsilon}
+  \Bigr\rceil .
+  \label{eq:finitesample}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Call $h$ \emph{bad} if $\err(h) > \varepsilon$, and let
+$\Hyp_B \subseteq \Hyp$ be the bad hypotheses. A fixed bad $h$ labels one
+random example correctly with probability at most $1-\varepsilon$, so it
+\emph{survives} the sample (i.e.\ $\emperr(h)=0$) with probability
+\begin{equation*}
+  \Pr\bigl[\emperr(h) = 0\bigr]
+  \le (1-\varepsilon)^m \le e^{-\varepsilon m} .
+\end{equation*}
+By the union bound, the probability that \emph{some} bad hypothesis
+survives is at most $|\Hyp|\, e^{-\varepsilon m}$, which is $\le \delta$
+once $m \ge \log(|\Hyp|/\delta)/\varepsilon$. On the complementary event
+no bad hypothesis is consistent with $S$; and by realizability the perfect
+$h^\ast$ \emph{is} consistent, so ERM \eqref{eq:erm} returns a consistent
+hypothesis --- necessarily a good one: $\err(h_S)\le\varepsilon$.
+\end{proof}
+
+Read the bound: examples are priced logarithmically in the class size and
+linearly in $1/\varepsilon$ --- doubling the class costs one more
+$\varepsilon^{-1}\log 2$ worth of data, not double the data.
+
+\section{Agnostic learning via uniform convergence}
+
+Realizability is a strong fiction; drop it. The target now is
+\emph{competing with the best in the class}.
+
+\begin{definition}[Agnostic PAC]
+$\Hyp$ is \emph{agnostically PAC learnable} if with
+$m \ge m_{\Hyp}(\varepsilon,\delta)$ samples, for \emph{every} $\D$,
+\begin{equation}
+  \Pr\Bigl[\err(h_S) \;\le\; \min_{h\in\Hyp}\err(h) + \varepsilon\Bigr]
+  \;\ge\; 1-\delta .
+  \label{eq:agnostic}
+\end{equation}
+\end{definition}
+
+The engine is a property of the \emph{sample}, not the algorithm:
+
+\begin{definition}[$\varepsilon$-representative sample; uniform convergence]
+$S$ is \emph{$\varepsilon$-representative} for $\Hyp$ if
+$\;|\emperr(h) - \err(h)| \le \varepsilon$ for \emph{all} $h \in \Hyp$
+simultaneously. $\Hyp$ has the \emph{uniform convergence property} if
+some $m^{\mathrm{UC}}_{\Hyp}(\varepsilon,\delta)$ samples make $S$
+$\varepsilon$-representative with probability $\ge 1-\delta$, for every
+$\D$.
+\end{definition}
+
+\begin{lemma}[UC $\Rightarrow$ agnostic PAC via ERM]
+\label{lem:ucerm}
+If $S$ is $\tfrac{\varepsilon}{2}$-representative, then the ERM output
+satisfies $\err(h_S) \le \min_{h\in\Hyp} \err(h) + \varepsilon$.
+\end{lemma}
+
+\begin{proof}
+For any $h\in\Hyp$:
+$\err(h_S) \le \emperr(h_S) + \tfrac{\varepsilon}{2}
+\le \emperr(h) + \tfrac{\varepsilon}{2}
+\le \err(h) + \varepsilon$,
+using representativeness, then ERM's optimality on $S$, then
+representativeness again.
+\end{proof}
+
+Uniform convergence is precisely what licenses trusting the training
+score of a hypothesis \emph{selected because of} its training score ---
+the trap the memorizer fell into.
+
+\begin{theorem}[Finite classes are agnostically learnable]
+\label{thm:finiteagnostic}
+Every finite $\Hyp$ has uniform convergence, hence is agnostically PAC
+learnable by ERM, with
+\begin{equation}
+  m_{\Hyp}(\varepsilon,\delta)
+  \;\le\;
+  \Bigl\lceil \frac{2\log\bigl(2|\Hyp|/\delta\bigr)}{\varepsilon^{2}}
+  \Bigr\rceil .
+  \label{eq:finiteagnostic}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+Fix $h$. The random variables $\mathbf{1}[h(x_i)\ne y_i]$ are i.i.d.\ in
+$[0,1]$ with mean $\err(h)$, so Hoeffding's inequality gives
+$\Pr\bigl[|\emperr(h)-\err(h)| > \varepsilon\bigr] \le
+2e^{-2m\varepsilon^2}$. A union bound over $\Hyp$ makes the failure
+probability $\le 2|\Hyp| e^{-2m\varepsilon^2} \le \delta$ for $m$ as in
+\eqref{eq:finiteagnostic} (at accuracy $\varepsilon/2$, whence the
+constant 2). Conclude with Lemma~\ref{lem:ucerm}.
+\end{proof}
+
+Note the price of dropping realizability: $1/\varepsilon$ became
+$1/\varepsilon^{2}$ --- estimating a mean to accuracy $\varepsilon$ costs
+$\varepsilon^{-2}$, whereas certifying perfection costs only
+$\varepsilon^{-1}$. These are the $1/m$ vs $1/\sqrt m$ rates the demo
+measures.
+
+\section{No Free Lunch: bias is necessary}
+
+\begin{theorem}[No-Free-Lunch]
+\label{thm:nfl}
+Let $A$ be any learner for binary classification over a domain $\X$, and
+let $m \le |\X|/2$. Then there exists a distribution $\D$, realizable by
+some $f:\X\to\{0,1\}$, on which
+\begin{equation}
+  \Pr_{S\sim\D^m}\Bigl[\err\bigl(A(S)\bigr) \ge \tfrac18\Bigr]
+  \;\ge\; \tfrac17 .
+  \label{eq:nfl}
+\end{equation}
+\end{theorem}
+
+(Proof idea: put uniform mass on $2m$ points; among all labelings of
+those points, the sample reveals at most half, and on the unseen half any
+fixed prediction is wrong for half the labelings in expectation ---
+so \emph{some} labeling defeats $A$.)
+
+\begin{corollary}
+If $\X$ is infinite, the class of \emph{all} functions $\Y^{\X}$ is not
+PAC learnable.
+\end{corollary}
+
+There is no universal learner: an algorithm succeeding on every problem
+with a fixed budget does not exist, because for any budget an adversarial
+(yet realizable!) task exists. Learning therefore always starts from
+prior knowledge --- the choice of $\Hyp$. The cost structure is the
+\emph{bias--complexity decomposition}: for the ERM output,
+\begin{equation}
+  \err(h_S)
+  \;=\;
+  \underbrace{\min_{h\in\Hyp}\err(h)}_{\text{approximation error}}
+  \;+\;
+  \underbrace{\err(h_S) - \min_{h\in\Hyp}\err(h)}_{\text{estimation error}} ,
+  \label{eq:biascomplexity}
+\end{equation}
+richer classes lowering the first term and (by
+\eqref{eq:finiteagnostic} and its VC analogue below) raising the second.
+Overfitting and underfitting are the two ways of losing this trade.
+
+\section{The VC dimension characterizes learnability}
+
+Finiteness of $\Hyp$ was sufficient but is far from necessary ---
+thresholds on $\mathbb{R}$ form an infinite class that is obviously
+learnable. The right measure counts \emph{behaviors}, not hypotheses.
+
+\begin{definition}[Shattering; VC dimension]
+For $C = \{c_1,\dots,c_k\} \subseteq \X$, the \emph{restriction} of
+$\Hyp$ to $C$ is
+$\Hyp_C = \{(h(c_1),\dots,h(c_k)) : h\in\Hyp\} \subseteq \{0,1\}^k$.
+$C$ is \emph{shattered} if $\Hyp_C = \{0,1\}^{k}$ --- every labeling of
+$C$ is realized by some hypothesis. The \emph{VC dimension} $\VC(\Hyp)$
+is the size of the largest shattered set (infinite if arbitrarily large
+sets are shattered).
+\end{definition}
+
+\begin{example}\leavevmode
+\begin{itemize}
+  \item \textbf{Thresholds} $\{x\mapsto\mathbf{1}[x> a]\}$ on
+    $\mathbb{R}$: any single point is shattered; for $x_1<x_2$ the
+    labeling $(1,0)$ is impossible (the demo checks this exhaustively).
+    $\VC = 1$.
+  \item \textbf{Intervals} $\mathbf{1}[a\le x\le b]$: two points shatter;
+    three fail on the labeling $(1,0,1)$. $\VC = 2$.
+  \item \textbf{Axis-aligned rectangles} in $\mathbb{R}^2$: $\VC = 4$.
+  \item \textbf{Halfspaces} in $\mathbb{R}^d$: $\VC = d+1$.
+  \item \textbf{Finite classes}: $\VC(\Hyp) \le \log_2|\Hyp|$
+    (shattering $k$ points needs $2^k$ hypotheses).
+  \item \textbf{One parameter, infinite VC:}
+    $\{x \mapsto \lceil\sin(\theta x)\rceil : \theta\in\mathbb{R}\}$
+    shatters arbitrarily large sets --- capacity is not parameter count.
+\end{itemize}
+\end{example}
+
+Why finite VC tames infinite classes: the \emph{growth function}
+$\tau_{\Hyp}(m) = \max_{|C|=m} |\Hyp_C|$ counts distinguishable behaviors
+on $m$ points, and once $m$ exceeds the VC dimension it stops growing
+exponentially:
+
+\begin{lemma}[Sauer--Shelah]
+If $\VC(\Hyp) = d < \infty$, then
+$\tau_{\Hyp}(m) \le \sum_{i=0}^{d}\binom{m}{i}$, and for $m \ge d$,
+\begin{equation}
+  \tau_{\Hyp}(m) \;\le\; \Bigl(\frac{em}{d}\Bigr)^{d}
+  \qquad\text{--- polynomial, not } 2^m .
+  \label{eq:sauer}
+\end{equation}
+\end{lemma}
+
+An effective ``size'' of $(em/d)^d$ plugged into finite-class arguments
+(with a symmetrization step) yields uniform convergence for any
+finite-VC class --- and NFL supplies the converse: shattered sets of
+unbounded size embed the unlearnable ``all functions'' problem.
+
+\begin{theorem}[Fundamental Theorem of Statistical Learning]
+\label{thm:fundamental}
+For a class $\Hyp$ of binary classifiers, the following are equivalent:
+\begin{enumerate}
+  \item $\Hyp$ has the uniform convergence property;
+  \item ERM is a successful agnostic PAC learner for $\Hyp$;
+  \item $\Hyp$ is agnostically PAC learnable;
+  \item $\Hyp$ is PAC learnable (realizable);
+  \item $\VC(\Hyp) = d < \infty$.
+\end{enumerate}
+Quantitatively, with constants absorbed in $\Theta$:
+\begin{equation}
+  \boxed{\;
+  m^{\mathrm{realizable}}_{\Hyp}(\varepsilon,\delta)
+  = \Theta\!\Bigl(\frac{d + \log(1/\delta)}{\varepsilon}\Bigr),
+  \qquad
+  m^{\mathrm{agnostic}}_{\Hyp}(\varepsilon,\delta)
+  = \Theta\!\Bigl(\frac{d + \log(1/\delta)}{\varepsilon^{2}}\Bigr).
+  \;}
+  \label{eq:fundamental}
+\end{equation}
+\end{theorem}
+
+This is the punchline of the whole subject: \emph{learnability is a
+combinatorial property of the hypothesis class} --- one number, the VC
+dimension, decides yes or no and prices the data; the algorithm (ERM)
+is universal among learnable classes. The demo's log-log panel shows the
+rates live for thresholds ($d=1$): the realizable excess risk decays like
+$1/m$, and under label noise the uniform-convergence supremum
+$\sup_{h\in\Hyp}|\emperr(h)-\err(h)|$ --- representativeness over the
+whole class, the quantity that costs $\varepsilon^{-2}$ --- decays like
+$1/\sqrt m$.
+
+\begin{remark}[What learnability does not promise]
+(i) \emph{Computation}: the theorem counts samples, not time --- ERM can
+be NP-hard even for learnable classes (e.g.\ agnostic halfspaces);
+statistical and computational learnability are separate axes.
+(ii) \emph{Distribution-specific help}: \eqref{eq:fundamental} is a
+worst-case-over-$\D$ statement, and the demo catches this in the act:
+with uniform $10\%$ label noise the measured \emph{excess risk of ERM}
+decays like $1/m$, faster than the worst-case $1/\sqrt m$, even though
+the uniform-convergence supremum genuinely decays like $1/\sqrt m$ on the
+same data. The reason: uniform noise keeps the noise level away from
+$\tfrac12$ (a \emph{margin} condition), and the linear risk penalty stops
+ERM from wandering into the region where the empirical fluctuations that
+drive the supremum live. Favorable distributions, margins, and
+regularization all beat the worst case; that is where the rest of
+learning theory (Tsybakov noise conditions, nonuniform learnability,
+Rademacher complexity, stability) begins.
+\end{remark}
+
+\end{document}
