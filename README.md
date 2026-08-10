@@ -86,6 +86,14 @@ mlr new paper my-idea first-note --assets
   `../../results/tables/` and figures to `../../results/figures/`, pulling
   numbers only from the tracker so the paper can never disagree with the runs.
 
+## Blackboard: the studio app
+
+[blackboard/](blackboard/) is our own research-studio app (chalk-on-slate):
+files rail, executable notebook cells with a persistent mlr-preloaded
+kernel, and a LaTeX theory board with one-click compile + PDF preview, plus
+tracked runs from `tracking.db`. Launch with F5 ("blackboard") or
+`blackboard --root .` — serves on localhost and opens the browser.
+
 ## Studio: the draft space
 
 Research starts messy; the studio is where it's allowed to. A studio is a

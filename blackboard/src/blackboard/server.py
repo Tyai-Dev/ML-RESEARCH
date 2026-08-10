@@ -1,0 +1,214 @@
+"""Blackboard server: files, cells, theory board, tracker — one local app.
+
+    blackboard [--root PATH] [--port 8321] [--no-browser]
+
+Serves the UI at http://127.0.0.1:<port>/ and a small JSON API underneath.
+The root is the ML-RESEARCH repo; every file path in the API is validated
+to stay inside it.
+"""
+
+import argparse
+import threading
+import webbrowser
+from pathlib import Path
+
+import nbformat
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, HTMLResponse
+from pydantic import BaseModel
+
+from blackboard.kernel import Kernel
+from blackboard.latex import compile_tex
+
+STATIC = Path(__file__).parent / "static"
+
+app = FastAPI(title="blackboard")
+kernel = Kernel()
+kernel_lock = threading.Lock()
+ROOT = Path.cwd()
+
+_BROWSE = ("studio", "research", "src/mlr")  # what the files rail shows
+_EDIT_SUFFIXES = {".tex", ".py", ".yaml", ".md", ".bib", ".txt"}
+
+
+def _safe(rel: str) -> Path:
+    path = (ROOT / rel).resolve()
+    if not path.is_relative_to(ROOT):
+        raise HTTPException(400, "path escapes the workspace")
+    return path
+
+
+@app.get("/", response_class=HTMLResponse)
+def index() -> str:
+    return (STATIC / "index.html").read_text(encoding="utf-8")
+
+
+@app.get("/api/workspace")
+def workspace() -> dict:
+    def tree(base: Path, rel_base: str, depth: int = 0) -> list[dict]:
+        if not base.exists() or depth > 3:
+            return []
+        out = []
+        for child in sorted(base.iterdir(), key=lambda c: (c.is_file(), c.name)):
+            if child.name.startswith((".", "__")) or child.suffix in (".pdf", ".aux",
+                    ".log", ".out", ".fls", ".fdb_latexmk", ".synctex.gz", ".pyc"):
+                continue
+            rel = f"{rel_base}/{child.name}"
+            if child.is_dir():
+                out.append({"name": child.name, "path": rel, "dir": True,
+                            "children": tree(child, rel, depth + 1)})
+            else:
+                out.append({"name": child.name, "path": rel, "dir": False})
+        return out
+
+    return {
+        "root": str(ROOT),
+        "sections": [
+            {"name": part, "children": tree(ROOT / part, part)} for part in _BROWSE
+        ],
+    }
+
+
+@app.get("/api/file")
+def read_file(path: str) -> dict:
+    target = _safe(path)
+    if not target.is_file():
+        raise HTTPException(404, f"no such file: {path}")
+    if target.suffix not in _EDIT_SUFFIXES:
+        raise HTTPException(400, f"not a text file blackboard edits: {target.suffix}")
+    return {"path": path, "content": target.read_text(encoding="utf-8")}
+
+
+class SaveFile(BaseModel):
+    path: str
+    content: str
+
+
+@app.post("/api/file")
+def save_file(req: SaveFile) -> dict:
+    target = _safe(req.path)
+    if target.suffix not in _EDIT_SUFFIXES:
+        raise HTTPException(400, f"not a text file blackboard edits: {target.suffix}")
+    target.write_text(req.content, encoding="utf-8")
+    return {"saved": req.path}
+
+
+@app.get("/api/notebook")
+def read_notebook(path: str) -> dict:
+    target = _safe(path)
+    if not target.is_file() or target.suffix != ".ipynb":
+        raise HTTPException(404, f"no such notebook: {path}")
+    nb = nbformat.read(target, as_version=4)
+    cells = [
+        {"type": c.cell_type, "source": c.source}
+        for c in nb.cells
+        if c.cell_type in ("code", "markdown")
+    ]
+    return {"path": path, "cells": cells}
+
+
+class SaveNotebook(BaseModel):
+    path: str
+    cells: list[dict]
+
+
+@app.post("/api/notebook")
+def save_notebook(req: SaveNotebook) -> dict:
+    target = _safe(req.path)
+    if target.suffix != ".ipynb":
+        raise HTTPException(400, "not a notebook path")
+    nb = nbformat.v4.new_notebook()
+    nb.metadata["kernelspec"] = {
+        "display_name": "Python (ml-research)", "language": "python", "name": "ml-research",
+    }
+    for cell in req.cells:
+        maker = (nbformat.v4.new_code_cell if cell.get("type") == "code"
+                 else nbformat.v4.new_markdown_cell)
+        nb.cells.append(maker(cell.get("source", "")))
+    nbformat.write(nb, target)
+    return {"saved": req.path, "cells": len(nb.cells)}
+
+
+class Execute(BaseModel):
+    code: str
+
+
+@app.post("/api/execute")
+def execute(req: Execute) -> dict:
+    with kernel_lock:
+        result = kernel.run(req.code)
+    return {
+        "ok": result.ok, "stdout": result.stdout, "value": result.value,
+        "error": result.error, "images": result.images,
+    }
+
+
+@app.post("/api/reset")
+def reset() -> dict:
+    with kernel_lock:
+        kernel.reset()
+    return {"reset": True}
+
+
+class Compile(BaseModel):
+    path: str  # a .tex file
+
+
+@app.post("/api/compile")
+def compile_endpoint(req: Compile) -> dict:
+    target = _safe(req.path)
+    if target.suffix != ".tex":
+        raise HTTPException(400, "not a tex file")
+    ok, log = compile_tex(target)
+    pdf_rel = req.path.rsplit(".", 1)[0] + ".pdf"
+    return {"ok": ok, "log": log, "pdf": f"/api/pdf?path={pdf_rel}" if ok else None}
+
+
+@app.get("/api/pdf")
+def serve_pdf(path: str) -> FileResponse:
+    target = _safe(path)
+    if not target.is_file() or target.suffix != ".pdf":
+        raise HTTPException(404, "no pdf built yet")
+    return FileResponse(target, media_type="application/pdf")
+
+
+@app.get("/api/runs")
+def runs(topic: str | None = None) -> dict:
+    from mlr.tracking import Tracker
+
+    db = ROOT / "tracking.db"
+    if not db.exists():
+        return {"runs": []}
+    with Tracker(db) as tracker:
+        rows = tracker.list_runs(topic=topic)
+        out = []
+        for run in rows[-30:]:
+            metric = tracker.last_metric(run["id"], "test_accuracy")
+            key = "test_accuracy"
+            if metric is None:
+                metric = tracker.last_metric(run["id"], "test_nll")
+                key = "test_nll"
+            out.append({**run, "metric": key, "value": metric})
+    return {"runs": out}
+
+
+def main() -> None:
+    global ROOT
+    parser = argparse.ArgumentParser(prog="blackboard")
+    parser.add_argument("--root", default=".", help="ML-RESEARCH repo root")
+    parser.add_argument("--port", type=int, default=8321)
+    parser.add_argument("--no-browser", action="store_true")
+    args = parser.parse_args()
+    ROOT = Path(args.root).resolve()
+
+    import uvicorn
+
+    url = f"http://127.0.0.1:{args.port}"
+    print(f"blackboard on {url}  (root: {ROOT})")
+    if not args.no_browser:
+        threading.Timer(0.8, lambda: webbrowser.open(url)).start()
+    uvicorn.run(app, host="127.0.0.1", port=args.port, log_level="warning")
+
+
+if __name__ == "__main__":
+    main()

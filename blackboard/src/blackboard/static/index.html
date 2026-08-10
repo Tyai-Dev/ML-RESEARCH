@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Blackboard</title>
+<style>
+  :root {
+    --slate: #1d2420; --slate-2: #181e1a; --slate-3: #222923; --slate-4: #232a25;
+    --edge: #2c342e; --edge-soft: #38423a;
+    --chalk: #e8e4d8; --chalk-dim: #b7bfab; --chalk-faint: #8b957f; --chalk-ghost: #6e7a64;
+    --amber: #e0b64f; --blue: #9fc6e8; --green: #b8d99a; --red: #e08a7a;
+    --serif: Georgia, "Times New Roman", serif;
+    --mono: ui-monospace, Consolas, "Cascadia Mono", monospace;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0; background: var(--slate); color: var(--chalk);
+    font: 14px/1.5 system-ui, "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; overflow: hidden;
+  }
+  button { font: inherit; cursor: pointer; }
+  ::selection { background: rgba(224,182,79,.28); }
+
+  /* top bar */
+  header {
+    display: flex; align-items: center; gap: 14px;
+    background: var(--slate-2); border-bottom: 1px solid var(--edge);
+    padding: 8px 16px; flex: none;
+  }
+  header .brand { font: 600 15px/1 var(--serif); letter-spacing: .02em; }
+  header .brand i { color: var(--amber); font-style: normal; }
+  header .path { font: 11.5px/1 var(--mono); color: var(--chalk-faint); flex: 1; }
+  .btn {
+    background: none; border: 1px solid var(--edge-soft); color: var(--chalk-dim);
+    border-radius: 6px; padding: 6px 12px; font-size: 12px;
+  }
+  .btn:hover, .btn:focus-visible { color: var(--chalk); border-color: var(--chalk-faint); outline: none; }
+  .btn.amber { color: var(--amber); border-color: #574a24; }
+  .btn.amber:hover { border-color: var(--amber); }
+  #kstate { font: 11px/1 var(--mono); color: var(--chalk-ghost); }
+  #kstate.busy { color: var(--amber); }
+
+  /* layout */
+  main { flex: 1; display: grid; grid-template-columns: 210px 1fr 420px; min-height: 0; }
+
+  /* files rail */
+  #rail {
+    background: var(--slate-2); border-right: 1px solid var(--edge);
+    overflow-y: auto; padding: 14px 0; font: 12.5px/1.9 var(--mono);
+  }
+  #rail .hd {
+    font: 600 10.5px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+    color: var(--chalk-faint); padding: 10px 16px 6px;
+  }
+  #rail .node { color: var(--chalk-dim); padding: 1px 16px; cursor: pointer; white-space: nowrap;
+                overflow: hidden; text-overflow: ellipsis; }
+  #rail .node:hover { color: var(--chalk); }
+  #rail .node.dir { color: var(--chalk-ghost); }
+  #rail .node.on {
+    color: var(--chalk); background: var(--slate-3);
+    border-left: 2px solid var(--amber); padding-left: 14px;
+  }
+
+  /* board (cells) */
+  #board { overflow-y: auto; padding: 20px 26px 80px; display: flex; flex-direction: column; gap: 12px; }
+  .cell { background: var(--slate-3); border: 1px solid var(--edge); border-radius: 8px; overflow: hidden; }
+  .cell.running { border-color: #574a24; }
+  .cell .head { display: flex; align-items: center; gap: 8px; padding: 4px 10px;
+                border-bottom: 1px solid var(--edge); }
+  .cell .head .tag { font: 10px/1 var(--mono); letter-spacing: .1em; text-transform: uppercase;
+                     color: var(--chalk-ghost); flex: 1; }
+  .cell .head button { background: none; border: 0; color: var(--chalk-ghost); font-size: 11px; padding: 3px 6px; }
+  .cell .head button:hover { color: var(--amber); }
+  .cell textarea {
+    width: 100%; background: none; border: 0; resize: none; color: var(--chalk);
+    font: 13px/1.65 var(--mono); padding: 12px 14px; outline: none; display: block;
+  }
+  .cell.md textarea { font: italic 15px/1.55 var(--serif); color: #d6d0bd; }
+  .cell .out {
+    border-top: 1px dashed var(--edge-soft); background: #1e2520;
+    padding: 10px 14px; font: 12.5px/1.6 var(--mono); color: #d9d3c0;
+    white-space: pre-wrap; overflow-x: auto;
+  }
+  .cell .out.err { color: var(--red); }
+  .cell .out img { max-width: 100%; background: #fdfcf6; border-radius: 4px; margin: 6px 0; }
+  .addrow { display: flex; gap: 10px; justify-content: center; padding-top: 6px; }
+  .addrow .btn { font-size: 11.5px; }
+
+  /* theory board */
+  #theory { background: var(--slate-4); border-left: 1px solid var(--edge);
+            display: flex; flex-direction: column; min-height: 0; }
+  #theory .tabs { display: flex; gap: 2px; padding: 10px 14px 0; border-bottom: 1px solid var(--edge); }
+  #theory .tabs button {
+    background: none; border: 0; border-bottom: 2px solid transparent;
+    color: var(--chalk-faint); font: 600 11px/1 var(--mono);
+    letter-spacing: .14em; text-transform: uppercase; padding: 8px 12px 10px;
+  }
+  #theory .tabs button.on { color: var(--amber); border-bottom-color: var(--amber); }
+  #theory .tabs .spacer { flex: 1; }
+  #theory .tabs .btn { margin-bottom: 6px; }
+  #texedit { flex: 1; background: none; border: 0; outline: none; resize: none;
+             color: var(--chalk); font: 12.5px/1.7 var(--mono); padding: 16px 18px; display: none; }
+  #pdfview { flex: 1; border: 0; background: #efece3; display: none; }
+  #texlog { flex: none; max-height: 130px; overflow-y: auto; border-top: 1px dashed var(--edge-soft);
+            font: 11px/1.5 var(--mono); color: var(--red); padding: 8px 14px; display: none; white-space: pre-wrap; }
+  #runsbar { flex: none; border-top: 1px solid var(--edge); padding: 10px 14px; }
+  #runsbar .hd { font: 600 10px/1 var(--mono); letter-spacing: .16em; text-transform: uppercase;
+                 color: var(--chalk-faint); margin-bottom: 6px; }
+  #runsbar table { width: 100%; border-collapse: collapse; font: 11px/1.6 var(--mono); }
+  #runsbar td { color: var(--chalk-dim); padding: 1px 4px; font-variant-numeric: tabular-nums; }
+  #runsbar td.v { color: var(--blue); text-align: right; }
+
+  footer {
+    flex: none; display: flex; gap: 18px; align-items: center;
+    background: var(--slate-2); border-top: 1px solid var(--edge);
+    padding: 6px 16px; font: 10.5px/1 var(--mono); color: var(--chalk-ghost);
+  }
+  footer .amber { color: var(--amber); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand"><i>▮</i> Blackboard</span>
+  <span class="path" id="whichnb">no notebook loaded</span>
+  <span id="kstate">kernel idle</span>
+  <button class="btn" id="resetk" title="clear the namespace">reset kernel</button>
+  <button class="btn" id="runall">run all</button>
+  <button class="btn amber" id="saveall">save</button>
+</header>
+
+<main>
+  <nav id="rail"><div class="hd">workspace</div><div id="tree">loading…</div></nav>
+
+  <section id="board">
+    <div class="addrow">
+      <button class="btn" id="addcode">+ code</button>
+      <button class="btn" id="addmd">+ note</button>
+    </div>
+  </section>
+
+  <aside id="theory">
+    <div class="tabs">
+      <button id="tab-edit" class="on">board · tex</button>
+      <button id="tab-pdf">preview</button>
+      <span class="spacer"></span>
+      <button class="btn amber" id="compile">compile</button>
+    </div>
+    <textarea id="texedit" spellcheck="false" placeholder="open a .tex from the rail — the theory board lives here"></textarea>
+    <iframe id="pdfview" title="compiled theory board"></iframe>
+    <div id="texlog"></div>
+    <div id="runsbar">
+      <div class="hd">tracked runs</div>
+      <table id="runstable"><tr><td>—</td></tr></table>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <span id="rootpath">root: …</span>
+  <span>env ml-research</span>
+  <span class="amber" id="texpath">no tex open</span>
+</footer>
+
+<script>
+"use strict";
+const $ = (id) => document.getElementById(id);
+const api = async (path, body) => {
+  const res = await fetch(path, body === undefined ? {} : {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json()).detail || res.statusText);
+  return res.json();
+};
+
+let notebookPath = null, texPath = null;
+
+/* ---------- kernel state ---------- */
+let busy = 0;
+const kstate = (delta) => {
+  busy += delta;
+  $("kstate").textContent = busy > 0 ? "kernel busy…" : "kernel idle";
+  $("kstate").classList.toggle("busy", busy > 0);
+};
+
+/* ---------- cells ---------- */
+const board = $("board");
+const autosize = (ta) => { ta.style.height = "auto"; ta.style.height = ta.scrollHeight + "px"; };
+
+function makeCell(type, source) {
+  const cell = document.createElement("div");
+  cell.className = "cell" + (type === "markdown" ? " md" : "");
+  cell.dataset.type = type;
+  const head = document.createElement("div");
+  head.className = "head";
+  const tag = document.createElement("span");
+  tag.className = "tag"; tag.textContent = type === "code" ? "code" : "note";
+  head.append(tag);
+  if (type === "code") {
+    const run = document.createElement("button");
+    run.textContent = "run ▸";
+    run.onclick = () => runCell(cell);
+    head.append(run);
+  }
+  const up = document.createElement("button"); up.textContent = "↑";
+  up.onclick = () => cell.previousElementSibling?.before(cell);
+  const down = document.createElement("button"); down.textContent = "↓";
+  down.onclick = () => cell.nextElementSibling !== addrow ? cell.nextElementSibling?.after(cell) : 0;
+  const del = document.createElement("button"); del.textContent = "✕";
+  del.onclick = () => cell.remove();
+  head.append(up, down, del);
+
+  const ta = document.createElement("textarea");
+  ta.value = source || ""; ta.spellcheck = false; ta.rows = 1;
+  ta.addEventListener("input", () => autosize(ta));
+  ta.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && e.shiftKey && type === "code") { e.preventDefault(); runCell(cell); }
+  });
+  cell.append(head, ta);
+  requestAnimationFrame(() => autosize(ta));
+  return cell;
+}
+
+const addrow = board.querySelector(".addrow");
+const addCell = (type, source) => { const c = makeCell(type, source); addrow.before(c); return c; };
+$("addcode").onclick = () => addCell("code", "").querySelector("textarea").focus();
+$("addmd").onclick = () => addCell("markdown", "").querySelector("textarea").focus();
+
+async function runCell(cell) {
+  const ta = cell.querySelector("textarea");
+  cell.querySelector(".out")?.remove();
+  cell.classList.add("running"); kstate(1);
+  try {
+    const r = await api("/api/execute", { code: ta.value });
+    const out = document.createElement("div");
+    out.className = "out" + (r.ok ? "" : " err");
+    let text = (r.stdout || "") + (r.value ? (r.stdout ? "\n" : "") + r.value : "");
+    if (!r.ok) text += (text ? "\n" : "") + r.error;
+    out.textContent = text;
+    for (const b64 of r.images || []) {
+      const img = document.createElement("img");
+      img.src = "data:image/png;base64," + b64;
+      out.append(img);
+    }
+    if (text || (r.images || []).length) cell.append(out);
+  } catch (err) {
+    const out = document.createElement("div");
+    out.className = "out err"; out.textContent = String(err);
+    cell.append(out);
+  } finally { cell.classList.remove("running"); kstate(-1); }
+}
+
+$("runall").onclick = async () => {
+  for (const cell of board.querySelectorAll(".cell")) {
+    if (cell.dataset.type === "code") await runCell(cell);
+  }
+};
+$("resetk").onclick = async () => { kstate(1); try { await api("/api/reset", {}); } finally { kstate(-1); } };
+
+/* ---------- files rail ---------- */
+function renderTree(nodes, depth) {
+  const frag = document.createDocumentFragment();
+  for (const node of nodes) {
+    const div = document.createElement("div");
+    div.className = "node" + (node.dir ? " dir" : "");
+    div.style.paddingLeft = 16 + depth * 12 + "px";
+    div.textContent = (node.dir ? "▾ " : "· ") + node.name;
+    div.dataset.path = node.path;
+    frag.append(div);
+    if (node.dir && node.children) frag.append(renderTree(node.children, depth + 1));
+    if (!node.dir) div.onclick = () => openFile(node.path, div);
+  }
+  return frag;
+}
+
+async function loadWorkspace() {
+  const ws = await api("/api/workspace");
+  $("rootpath").textContent = "root: " + ws.root;
+  const tree = $("tree");
+  tree.textContent = "";
+  for (const section of ws.sections) {
+    const hd = document.createElement("div");
+    hd.className = "hd"; hd.textContent = section.name;
+    tree.append(hd, renderTree(section.children, 0));
+  }
+}
+
+async function openFile(path, node) {
+  document.querySelectorAll("#rail .node.on").forEach((n) => n.classList.remove("on"));
+  node?.classList.add("on");
+  if (path.endsWith(".ipynb")) {
+    const nb = await api("/api/notebook?path=" + encodeURIComponent(path));
+    notebookPath = path;
+    $("whichnb").textContent = path;
+    board.querySelectorAll(".cell").forEach((c) => c.remove());
+    for (const cell of nb.cells) addCell(cell.type, cell.source);
+  } else if (path.endsWith(".tex")) {
+    const file = await api("/api/file?path=" + encodeURIComponent(path));
+    texPath = path;
+    $("texpath").textContent = path;
+    $("texedit").value = file.content;
+    showTab("edit");
+  } else {
+    const file = await api("/api/file?path=" + encodeURIComponent(path));
+    notebookPath = null;
+    $("whichnb").textContent = path + " (read-only view)";
+    board.querySelectorAll(".cell").forEach((c) => c.remove());
+    addCell("code", file.content);
+  }
+}
+
+/* ---------- theory board ---------- */
+function showTab(which) {
+  $("tab-edit").classList.toggle("on", which === "edit");
+  $("tab-pdf").classList.toggle("on", which === "pdf");
+  $("texedit").style.display = which === "edit" ? "block" : "none";
+  $("pdfview").style.display = which === "pdf" ? "block" : "none";
+}
+$("tab-edit").onclick = () => showTab("edit");
+$("tab-pdf").onclick = () => showTab("pdf");
+showTab("edit");
+
+$("compile").onclick = async () => {
+  if (!texPath) return;
+  $("texlog").style.display = "none";
+  await api("/api/file", { path: texPath, content: $("texedit").value });
+  $("compile").textContent = "compiling…";
+  try {
+    const r = await api("/api/compile", { path: texPath });
+    if (r.ok) {
+      $("pdfview").src = r.pdf + "&t=" + Date.now();
+      showTab("pdf");
+    } else {
+      $("texlog").textContent = r.log;
+      $("texlog").style.display = "block";
+    }
+  } finally { $("compile").textContent = "compile"; }
+};
+
+/* ---------- save ---------- */
+$("saveall").onclick = async () => {
+  const jobs = [];
+  if (notebookPath) {
+    const cells = [...board.querySelectorAll(".cell")].map((c) => ({
+      type: c.dataset.type, source: c.querySelector("textarea").value,
+    }));
+    jobs.push(api("/api/notebook", { path: notebookPath, cells }));
+  }
+  if (texPath) jobs.push(api("/api/file", { path: texPath, content: $("texedit").value }));
+  await Promise.all(jobs);
+  $("saveall").textContent = "saved ✓";
+  setTimeout(() => ($("saveall").textContent = "save"), 1200);
+};
+
+/* ---------- tracked runs ---------- */
+async function loadRuns() {
+  try {
+    const data = await api("/api/runs");
+    const table = $("runstable");
+    table.textContent = "";
+    for (const run of data.runs.slice(-6).reverse()) {
+      const tr = document.createElement("tr");
+      const value = run.value == null ? "—" : run.value.toFixed(4);
+      tr.innerHTML = "";
+      const c1 = document.createElement("td"); c1.textContent = run.id;
+      const c2 = document.createElement("td"); c2.textContent = run.topic + "/" + run.name;
+      const c3 = document.createElement("td"); c3.className = "v"; c3.textContent = value;
+      tr.append(c1, c2, c3);
+      table.append(tr);
+    }
+  } catch { /* tracker optional */ }
+}
+
+/* ---------- boot ---------- */
+loadWorkspace().then(loadRuns);
+</script>
+</body>
+</html>

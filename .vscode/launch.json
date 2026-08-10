@@ -2,7 +2,17 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "studio",
+            "name": "blackboard",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "blackboard.server",
+            "args": ["--root", "${workspaceFolder}"],
+            "console": "integratedTerminal",
+            "cwd": "${workspaceFolder}",
+            "justMyCode": true
+        },
+        {
+            "name": "studio (jupyterlab)",
             "type": "debugpy",
             "request": "launch",
             "module": "mlr.cli",
