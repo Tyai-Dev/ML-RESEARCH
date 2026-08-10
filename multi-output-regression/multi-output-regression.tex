@@ -1,0 +1,106 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Multi-Output Linear Regression:\\
+Linear $\to$ Multivariate Gaussian}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The regression counterpart of softmax's Bernoulli $\to$ multinoulli step:
+a vector response $y \in \mathbb{R}^K$ that is conditionally multivariate
+normal around a linear map of $x$. Unlike softmax, the closed form
+survives --- the Frobenius loss separates over outputs into $K$ ordinary
+least-squares problems sharing one Gram factorization --- and this note
+records why, when correlated noise still doesn't change the answer, and
+what the one-hot ``linearization trick'' for classification gets right
+and wrong. Demonstrations in \texttt{multioutput.py}.
+\end{abstract}
+
+\section{The model}
+
+\begin{equation}
+  y \mid x \;\sim\; \mathcal{N}\bigl(W^\top x,\; \sigma^2 I_K\bigr),
+  \qquad W \in \mathbb{R}^{d\times K},
+  \label{eq:model}
+\end{equation}
+one weight column per output. The conditional NLL, up to constants, is
+the Frobenius least-squares loss
+\begin{equation}
+  \mathcal{L}(W) \;=\; \frac{1}{2n}\,\lVert XW - Y\rVert_F^2
+  \;=\; \sum_{k=1}^{K} \frac{1}{2n}\,\lVert Xw_k - Y_{:,k}\rVert^2 ,
+  \label{eq:loss}
+\end{equation}
+and the second equality is the whole story: \emph{the loss separates over
+output columns}. Each $w_k$ solves an ordinary least-squares problem
+against the same design.
+
+\begin{proposition}
+If $X$ has full column rank, the unique MLE is
+\begin{equation}
+  \boxed{\;\widehat{W} \;=\; (X^\top X)^{-1} X^\top Y ,\;}
+  \label{eq:closed}
+\end{equation}
+the normal equations of the linear-regression note with $K$ right-hand
+sides --- one Gram factorization, reused for every output.
+\end{proposition}
+
+\begin{proof}
+$\nabla_W \mathcal{L} = \tfrac1n X^\top (XW - Y) = 0$ gives
+$X^\top X\, W = X^\top Y$; column $k$ of this system is exactly the
+single-output normal equation for $(X, Y_{:,k})$, with the usual strict
+convexity giving uniqueness.
+\end{proof}
+
+Per sample, the gradient is $x_i\,(x_i^\top W - y_i^\top)$ --- residual
+(now a $K$-vector) times features, the same GLM shape as everywhere else
+in this collection; the script's SGD and autograd routes verify it by
+trajectory identity.
+
+\begin{remark}[Correlated noise changes nothing --- here]
+Replace $\sigma^2 I_K$ in \eqref{eq:model} by a full covariance
+$\Sigma$: the NLL becomes a $\Sigma^{-1}$-weighted quadratic, yet its
+minimizer is still \eqref{eq:closed}. Reason: the stationarity condition
+reads $X^\top (XW - Y)\,\Sigma^{-1} = 0$, and $\Sigma^{-1}$ is
+invertible, so it drops out. This is the seemingly-unrelated-regressions
+collapse: correlated outputs only matter for estimation once the outputs
+use \emph{different} regressors; with a shared design, per-column OLS is
+already the MLE. (Estimating $\Sigma$ itself: the $1/n$ residual
+covariance, as in the Gaussian note.)
+\end{remark}
+
+\section{The one-hot linearization trick}
+
+Multi-output regression tempts a shortcut for $K$-class classification:
+encode labels as one-hot vectors $Y \in \{0,1\}^{n\times K}$, solve
+\eqref{eq:closed}, classify by $\arg\max_k$ of the fitted scores. What
+this gets \emph{right}: linear score functions and often reasonable
+accuracy (the script measures it a few points below the softmax fit on
+the same data). What it gets \emph{wrong}: the scores are not
+probabilities --- the script's histogram shows fitted values well outside
+$[0,1]$ (they need not sum to 1 either), because a Gaussian likelihood on
+$\{0,1\}$ targets is misspecified. Squared loss also penalizes
+\emph{over}-confident correct scores, dragging boundaries toward outlying
+but well-classified points. The proper likelihood for a categorical
+response is the multinoulli --- softmax regression --- which is exactly
+the difference between modeling $\mathbb{E}[Y|x]$ with the wrong noise
+and modeling $\Pr(Y|x)$ itself.
+
+\section{Experiment}
+
+$n = 3000$, $d = 3$, $K = 2$, noise $\sigma = 0.8$ (seed 7): the closed
+form recovers $W^\ast$ to sampling accuracy; per-column OLS reproduces it
+column by column (asserted); GD converges to it; hand and autograd SGD
+trajectories coincide to $10^{-10}$. The one-hot trick on 3-class softmax
+data classifies within a few points of the Bayes rule while its
+``probabilities'' span roughly $[-0.4, 1.3]$ --- linear scores, broken
+semantics.
+
+\end{document}

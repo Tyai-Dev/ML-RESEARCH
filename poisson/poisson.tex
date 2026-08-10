@@ -1,0 +1,131 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Poisson Regression, and the GLM Unification}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The conditional-distribution recipe of the logistic note, applied to
+count data: $Y|X{=}x \sim \mathrm{Poisson}(\lambda(x))$ with log-linear
+rate. The per-sample gradient is once again \emph{residual times
+features} --- and this third instance is no coincidence: for any
+exponential-family response with its canonical link, the gradient of the
+conditional NLL is $(\hat\mu - y)\,x$. That unification --- generalized
+linear models --- is derived here, making the linear, logistic, and
+Poisson notes three rows of one table.
+\end{abstract}
+
+\section{The model}
+
+Counts $y \in \{0,1,2,\dots\}$ with
+\begin{equation}
+  \Pr(Y=y \mid X=x)
+  = e^{-\lambda(x)} \frac{\lambda(x)^{y}}{y!},
+  \qquad
+  \lambda(x) = e^{w^\top x} > 0 ,
+  \label{eq:model}
+\end{equation}
+the exponential (log link) keeping the rate positive exactly as the
+sigmoid kept a probability in $(0,1)$. Poisson facts:
+$\mathbb{E}[Y|x] = \mathrm{Var}(Y|x) = \lambda(x)$ (mean equals
+variance --- visible in the script's first panel), and the log-linear
+form means each unit increase of a feature \emph{multiplies} the expected
+count by $e^{w_j}$.
+
+\section{Conditional MLE}
+
+The per-sample NLL, dropping the $\log y_i!$ term (constant in $w$):
+\begin{equation}
+  \mathcal{L}_i(w)
+  \;=\; \lambda_i - y_i \log\lambda_i
+  \;=\; e^{w^\top x_i} - y_i\, w^\top x_i .
+  \label{eq:nll}
+\end{equation}
+Differentiate: $\nabla_w \mathcal{L}_i = e^{w^\top x_i} x_i - y_i x_i$,
+hence
+\begin{equation}
+  \nabla_w \mathcal{L}_i \;=\; \bigl(\lambda_i - y_i\bigr)\, x_i .
+  \label{eq:grad}
+\end{equation}
+Residual times features, again. Stationarity
+$\sum_i e^{w^\top x_i} x_i = \sum_i y_i x_i$ is transcendental --- no
+closed form, as in the logistic case --- but the Hessian
+\begin{equation}
+  \nabla^2 \mathcal{L} \;=\; \frac1n X^\top
+  \operatorname{diag}(\lambda_i)\, X \;\succeq\; 0
+  \label{eq:hessian}
+\end{equation}
+is PSD with weights equal to the conditional \emph{variances} (for
+Poisson, the rates themselves), so the loss is convex and Newton/IRLS
+--- each step a weighted least-squares solve --- converges quadratically
+(8 steps vs GD's thousands in the script).
+
+\section{The GLM unification}
+
+The pattern is now unmistakable:
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+response $Y|x$ & link ($\theta = w^\top x$) & mean $\hat\mu(\theta)$ &
+per-sample gradient\\
+\midrule
+Gaussian & identity & $\theta$ & $(\theta - y)\,x$\\
+Bernoulli & logit & $\sigma(\theta)$ & $(\sigma(\theta) - y)\,x$\\
+Poisson & log & $e^{\theta}$ & $(e^{\theta} - y)\,x$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{proposition}[Canonical-link GLM gradient]
+Let the conditional distribution be an exponential family in natural
+parameter $\theta$,
+$\;p(y \mid \theta) = h(y)\, \exp\bigl(\theta\, y - A(\theta)\bigr)$,
+with $\theta = w^\top x$ (the \emph{canonical link}). Then the per-sample
+NLL is $\mathcal{L}_i(w) = A(w^\top x_i) - y_i\, w^\top x_i$ and
+\begin{equation}
+  \boxed{\;\nabla_w \mathcal{L}_i
+  \;=\; \bigl(\hat\mu(w^\top x_i) - y_i\bigr)\, x_i ,
+  \qquad \hat\mu = A' = \mathbb{E}[Y\mid\theta].\;}
+  \label{eq:glm}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+$\nabla_w \mathcal{L}_i = A'(w^\top x_i)\,x_i - y_i x_i$, and the
+exponential-family identity $A'(\theta) = \mathbb{E}[Y\mid\theta]$
+(differentiate $\int h e^{\theta y - A} = 1$ in $\theta$) identifies
+$A'$ as the mean function. Convexity is automatic:
+$A''(\theta) = \mathrm{Var}(Y\mid\theta) \ge 0$, so the Hessian is
+$\tfrac1n X^\top \operatorname{diag}(\mathrm{Var}_i) X \succeq 0$ ---
+which is also why the IRLS weights are always the conditional variances.
+\end{proof}
+
+Check the table against the identity: Gaussian, $A = \theta^2/2$,
+$A' = \theta$; Bernoulli, $A = \log(1+e^{\theta})$, $A' = \sigma$;
+Poisson, $A = e^{\theta}$, $A' = e^{\theta}$. One theorem, all three
+gradients --- and the reason ``prediction minus target, pushed along the
+features'' keeps reappearing: it is not a coincidence of examples but
+the derivative of the exponential family's log-normalizer. Any new
+response distribution in this family (exponential, gamma, multinomial
+--- see the softmax note) joins the table for free.
+
+\section{Experiment}
+
+$n = 5000$, $w^\ast = (0.3, 0.8, -0.5)$, $x \sim \mathcal{N}(0, I_2)$,
+counts drawn from \eqref{eq:model} (seed 7). Newton/IRLS (8 steps) and GD
+(4000 steps) agree on the optimum, recovering $w^\ast$ to sampling
+accuracy; hand and autograd SGD trajectories coincide to $10^{-10}$; the
+calibration panel plots fitted $e^{\hat w^\top x}$ against true
+$\lambda(x)$ on fresh points --- the estimated object is the \emph{rate
+function}, the Poisson sibling of logistic regression's $p(x)$.
+
+\end{document}

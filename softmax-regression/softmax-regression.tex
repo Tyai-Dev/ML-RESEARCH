@@ -1,0 +1,126 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Softmax Regression:\\
+A Multinoulli Whose Parameter Is a Function of $X$}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Bernoulli $\to$ multinoulli: for $K$ classes, the conditional label
+distribution is a multinoulli whose probability vector depends on $x$
+through the softmax of $K$ linear scores. Conditional MLE is
+cross-entropy minimization; the gradient is (softmax $-$ one-hot)
+$\otimes$ features --- residual times features, vectorized over classes;
+$K = 2$ collapses to logistic regression. As there, no closed form,
+convexity, and a Bayes floor $\mathbb{E}[1 - \max_k p_k(X)]$ that the
+well-specified fit approaches. All demonstrated in \texttt{softmax.py}.
+\end{abstract}
+
+\section{The conditional-multinoulli view}
+
+For $Y \in \{1,\dots,K\}$, whatever the joint over $(X, Y)$ is,
+\begin{equation}
+  Y \mid X = x \;\sim\; \mathrm{Multinoulli}\bigl(p_1(x),\dots,p_K(x)\bigr),
+  \qquad
+  p_k(x) = \Pr(Y = k \mid X = x),
+  \label{eq:condmulti}
+\end{equation}
+automatically --- a distribution on $K$ outcomes \emph{is} a multinoulli;
+the modeling assumption is again only the form of the parameter
+\emph{function}, now simplex-valued. The linear model gives every class a
+score $w_k^\top x$ (rows of $W \in \mathbb{R}^{K\times d}$, $x$ carrying
+the leading 1) and maps scores to the simplex by softmax:
+\begin{equation}
+  p_k(x) \;=\; \frac{e^{w_k^\top x}}{\sum_{j=1}^{K} e^{w_j^\top x}}
+  \;=\; \operatorname{softmax}(Wx)_k ,
+  \label{eq:softmax}
+\end{equation}
+softmax being to the simplex what the sigmoid is to $(0,1)$
+(distributions note). Log-odds between any two classes are linear:
+$\log\bigl(p_k(x)/p_j(x)\bigr) = (w_k - w_j)^\top x$, so all pairwise
+decision boundaries are hyperplanes.
+
+\begin{remark}[Identifiability]
+Adding one fixed vector $v$ to every row of $W$ leaves
+\eqref{eq:softmax} unchanged ($e^{v^\top x}$ cancels), so $W$ is only
+identified up to a shared row-shift (conventionally fixed by pinning
+$w_K = 0$). The identifiable object --- and what the experiment
+evaluates --- is the probability function \eqref{eq:softmax} itself.
+\end{remark}
+
+\section{Conditional MLE = cross-entropy}
+
+The conditional likelihood of a sample and its average NLL:
+\begin{equation}
+  \mathcal{L}(W)
+  \;=\; -\frac1n \sum_{i=1}^n \log p_{y_i}(x_i)
+  \;=\; \frac1n \sum_{i=1}^n
+  \Bigl[\log\!\sum_j e^{w_j^\top x_i} \;-\; w_{y_i}^\top x_i\Bigr],
+  \label{eq:nll}
+\end{equation}
+the multiclass cross-entropy (the log-sum-exp playing the role of the
+Bernoulli note's $\log(1+e^t)$ --- it is the log-normalizer $A(\theta)$
+of the multinoulli exponential family).
+
+\begin{proposition}[Gradient]
+With $p^{(i)} = \operatorname{softmax}(W x_i)$ and one-hot $e_{y_i}$,
+\begin{equation}
+  \boxed{\;\nabla_{w_k} \mathcal{L}_i
+  \;=\; \bigl(p_k(x_i) - \mathbf{1}[y_i = k]\bigr)\, x_i,
+  \qquad
+  \nabla_W \mathcal{L}_i = \bigl(p^{(i)} - e_{y_i}\bigr)\, x_i^\top .\;}
+  \label{eq:grad}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Differentiate \eqref{eq:nll} in $w_k$:
+$\partial_{w_k} \log\sum_j e^{w_j^\top x} =
+\frac{e^{w_k^\top x}}{\sum_j e^{w_j^\top x}}\,x = p_k(x)\,x$, and
+$\partial_{w_k}\, w_{y}^\top x = \mathbf{1}[y=k]\, x$. Subtract.
+\end{proof}
+
+Residual times features once more --- the GLM identity of the Poisson
+note, with the multinoulli as the vector-valued exponential family. For
+$K=2$, subtracting the two rows of \eqref{eq:grad} recovers the logistic
+gradient $(\sigma - y)x$ exactly. Stationarity
+$\sum_i p^{(i)} x_i^\top = \sum_i e_{y_i} x_i^\top$ is transcendental
+(no closed form), the Hessian is PSD (log-sum-exp is convex; composed
+with the linear map), so gradient methods own the problem --- and the
+separable-data pathology of the logistic note recurs identically: on
+perfectly separated classes the MLE does not exist.
+
+\section{The multiclass Bayes floor}
+
+For any classifier $h$,
+\begin{equation}
+  \Pr\bigl(h(X)\ne Y\bigr)
+  \;\ge\; \mathbb{E}\Bigl[\,1 - \max_k\, p_k(X)\Bigr],
+  \label{eq:bayes}
+\end{equation}
+attained by $h^\ast(x) = \arg\max_k p_k(x)$: at each $x$, predicting the
+likeliest class errs with probability $1-\max_k p_k(x)$ and nothing does
+better. The binary floor $\mathbb{E}[\min(p, 1-p)]$ is the $K=2$ case.
+
+\section{Experiment}
+
+$K = 3$ classes in $\mathbb{R}^2$, $n = 6000$ labels drawn from a true
+softmax model (seed 7). GD converges in the single convex basin; hand and
+autograd (\texttt{F.cross\_entropy}) SGD trajectories coincide to
+$10^{-10}$; fitted class probabilities match the true ones to
+$\approx 10^{-2}$ mean absolute error (the identifiable comparison ---
+not $W$ vs $W^\ast$); and the fitted classifier's test error meets the
+Bayes floor \eqref{eq:bayes} to three decimals. The figure shows the
+three linear decision regions, the convex convergence, and the
+calibration diagonal for $p_0(x)$ --- the estimated object is, once
+again, a \emph{parameter function}, now simplex-valued.
+
+\end{document}
