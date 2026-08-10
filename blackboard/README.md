@@ -33,8 +33,8 @@ Serves on http://127.0.0.1:8321 (local only) and opens the browser.
   `return`/`pass`), Tab/Shift+Tab indent/dedent; each code cell has a
   **fix** button (ruff format + safe autofixes, remaining diagnostics shown
   under the cell; kernel-provided names like `np` aren't flagged).
-- **Assistant** — a terminal-style dock under the notebook (click the
-  "assistant" bar or Ctrl+`; drag its top edge to resize): streaming chat
+- **Assistant** — the third tab of the right column (board · tex |
+  preview | assistant; Ctrl+` jumps to it): streaming chat
   with a provider dropdown —
   **claude** (`claude-opus-5`), **openai** (`gpt-5`), **gemini**
   (`gemini-2.5-pro`); override models with `BLACKBOARD_*_MODEL` vars.
