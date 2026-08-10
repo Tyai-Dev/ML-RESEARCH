@@ -36,3 +36,6 @@ studio/**/*.pdf
 
 # Blackboard personal workspace (your boards, not the app)
 blackboard/workspace/
+
+# API keys (blackboard assistant)
+.env

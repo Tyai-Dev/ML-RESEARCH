@@ -9,6 +9,9 @@ dependencies = [
     "nbformat>=5.9",
     "ruff>=0.6",
     "anthropic>=0.40",
+    "openai>=1.50",
+    "google-genai>=1.0",
+    "python-dotenv>=1.0",
 ]
 
 [project.scripts]

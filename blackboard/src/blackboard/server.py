@@ -197,6 +197,7 @@ def fix(req: Fix) -> dict:
 class Chat(BaseModel):
     messages: list[dict]
     context: str | None = None
+    provider: str = "claude"
 
 
 @app.post("/api/chat")
@@ -206,7 +207,7 @@ def chat(req: Chat) -> StreamingResponse:
     if not req.messages:
         raise HTTPException(400, "empty conversation")
     try:
-        chunks = stream_chat(req.messages, context=req.context)
+        chunks = stream_chat(req.messages, context=req.context, provider=req.provider)
     except ChatError as exc:
         raise HTTPException(503, str(exc))
     return StreamingResponse(chunks, media_type="text/plain; charset=utf-8")
@@ -252,6 +253,13 @@ def main() -> None:
     args = parser.parse_args()
     ROOT = Path(args.root).resolve()
     ROOT.mkdir(parents=True, exist_ok=True)
+
+    # API keys for the assistant: load .env from the blackboard project dir
+    # and from the current directory (later loads never override earlier ones)
+    from dotenv import load_dotenv
+
+    load_dotenv(Path(__file__).parents[2] / ".env")  # blackboard/.env
+    load_dotenv()  # ./.env (wherever blackboard was launched from)
 
     import uvicorn
 

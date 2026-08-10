@@ -33,11 +33,17 @@ Serves on http://127.0.0.1:8321 (local only) and opens the browser.
   `return`/`pass`), Tab/Shift+Tab indent/dedent; each code cell has a
   **fix** button (ruff format + safe autofixes, remaining diagnostics shown
   under the cell; kernel-provided names like `np` aren't flagged).
-- **Assistant** — the header's *assistant* tab is a streaming Claude chat
-  (`claude-opus-5`; override with `BLACKBOARD_MODEL`). "Attach board" sends
-  your current cells + tex as context; any fenced code block in a reply has
-  an **→ insert as cell** button. Requires `ANTHROPIC_API_KEY` (or an
-  `ant auth login` profile) in the environment that launches blackboard.
+- **Assistant** — a terminal-style dock under the notebook (click the
+  "assistant" bar or Ctrl+`): streaming chat with a provider dropdown —
+  **claude** (`claude-opus-5`), **openai** (`gpt-5`), **gemini**
+  (`gemini-2.5-pro`); override models with `BLACKBOARD_*_MODEL` vars.
+  "Attach board" sends your current cells + tex as context; fenced code
+  blocks in replies get **→ insert as cell** and **copy** buttons.
+  Keys live in `blackboard/.env` — copy `.env.example`, fill in what you
+  have (each provider works independently):
+  `ANTHROPIC_API_KEY` (platform.claude.com -> Settings -> API keys),
+  `OPENAI_API_KEY` (platform.openai.com/api-keys),
+  `GEMINI_API_KEY` (aistudio.google.com/apikey).
 
 ## Architecture
 
