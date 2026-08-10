@@ -1,0 +1,129 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\title{Information Theory for ML:\\
+Entropy, KL Divergence, and Why Cross-Entropy Loss Is Maximum Likelihood}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+The quantities behind every ``cross-entropy loss'' line of ML code, and
+the identity that ties this whole repository together: minimizing NLL is
+minimizing a KL divergence. \texttt{information\_theory.py} verifies each
+claim numerically.
+
+\section{Entropy}
+
+\begin{definition}
+For a distribution $p$ on a finite alphabet,
+\begin{equation}
+  H(p) \;=\; -\sum_x p(x)\log p(x)
+  \qquad (0\log 0 := 0).
+  \label{eq:entropy}
+\end{equation}
+\end{definition}
+
+$H$ measures the uncertainty of a draw --- equivalently (source coding
+theorem) the optimal average code length, in nats for $\log_e$, bits for
+$\log_2$. Extremes: $H = 0$ iff $p$ is deterministic; on $k$ symbols $H$
+is maximized by the uniform distribution at $\log k$. The Bernoulli curve
+$H(p) = -p\log p - (1-p)\log(1-p)$ peaks at $p=\tfrac12$ (script, left
+panel). Among densities on $\mathbb{R}$ with fixed variance, the Gaussian
+maximizes (differential) entropy --- one reason it is the default noise
+model.
+
+\section{KL divergence}
+
+\begin{definition}
+For $p \ll q$ (i.e.\ $q(x)=0 \Rightarrow p(x)=0$),
+\begin{equation}
+  \mathrm{KL}(p \,\|\, q) \;=\; \sum_x p(x) \log\frac{p(x)}{q(x)} .
+  \label{eq:kl}
+\end{equation}
+\end{definition}
+
+The expected excess code length for encoding $p$-data with a code built
+for $q$ --- the natural ``how wrong is model $q$ about reality $p$.''
+
+\begin{theorem}[Gibbs' inequality]
+$\mathrm{KL}(p\,\|\,q) \ge 0$, with equality iff $p = q$.
+\end{theorem}
+
+\begin{proof}
+With $\log t \le t - 1$ (equality iff $t=1$), for $x$ with $p(x)>0$:
+$-\mathrm{KL} = \sum_x p(x)\log\frac{q(x)}{p(x)} \le
+\sum_x p(x)\bigl(\frac{q(x)}{p(x)} - 1\bigr) = \sum_x q(x) - 1 \le 0$,
+with equality iff $q(x)=p(x)$ everywhere $p$ charges.
+\end{proof}
+
+Not a metric: asymmetric, no triangle inequality. The direction matters
+--- $\mathrm{KL}(p\|q)$ punishes $q$ for assigning tiny mass where $p$
+lives (mode-covering); $\mathrm{KL}(q\|p)$ tolerates dropping modes.
+
+\section{Cross-entropy, and the identity behind the loss}
+
+\begin{definition}
+$H(p, q) = -\sum_x p(x)\log q(x)$.
+\end{definition}
+
+Adding and subtracting $H(p)$ gives the decomposition
+\begin{equation}
+  \boxed{\;H(p, q) \;=\; H(p) \;+\; \mathrm{KL}(p\,\|\,q).\;}
+  \label{eq:cedecomp}
+\end{equation}
+Since $H(p)$ does not involve $q$: \emph{minimizing cross-entropy over the
+model $q$ is minimizing the KL divergence to it}, and $H(p)$ is the
+irreducible floor of the loss.
+
+\section{Maximum likelihood is KL minimization}
+
+Let $\hat p$ be the \emph{empirical distribution} of a sample
+$x_1,\dots,x_n$ (mass $\tfrac1n$ at each observation). For any model
+$q_\theta$, the average NLL rewrites as
+\begin{equation}
+  \frac1n \sum_{i=1}^n -\log q_\theta(x_i)
+  \;=\; -\sum_x \hat p(x) \log q_\theta(x)
+  \;=\; H(\hat p, q_\theta)
+  \;\overset{\eqref{eq:cedecomp}}{=}\;
+  H(\hat p) + \mathrm{KL}(\hat p \,\|\, q_\theta) .
+  \label{eq:mlekl}
+\end{equation}
+The $\theta$-dependence sits entirely in the KL term, hence
+\begin{equation}
+  \boxed{\;\arg\min_\theta \mathrm{NLL}(\theta)
+  \;=\; \arg\min_\theta \mathrm{KL}\bigl(\hat p \,\|\, q_\theta\bigr):\;}
+  \label{eq:mleiskl}
+\end{equation}
+maximum likelihood fits the model to the data's empirical distribution in
+the KL sense. Every MLE in this repository --- Bernoulli, Gaussian, least
+squares --- is an instance; the script overlays $\mathrm{NLL}(q)$ and
+$H(\hat p) + \mathrm{KL}(\hat p\|q)$ for Bernoulli and the curves
+coincide to $10^{-12}$, with the minimum at $\bar x$ sitting on the
+entropy floor. (This also explains why the loss never reaches zero: the
+floor is $H(\hat p)$, the data's own uncertainty.)
+
+\section{Mutual information}
+
+\begin{definition}
+$I(X;Y) = \mathrm{KL}\bigl(p_{XY} \,\|\, p_X p_Y\bigr)
+= H(X) - H(X\mid Y) = H(X)+H(Y)-H(X,Y)$.
+\end{definition}
+
+The KL distance of the joint from independence --- how many nats one
+variable carries about the other; zero iff independent, and symmetric
+despite KL's asymmetry. It upper-bounds what any predictor of $Y$ from
+$X$ can achieve (Fano), and appears across ML as the objective of
+representation learning (InfoNCE, information bottleneck) and the
+capacity limit of channels. Worth internalizing next to
+\eqref{eq:mleiskl}: entropy is the floor of prediction, mutual
+information is the budget of relevance.
+
+\end{document}

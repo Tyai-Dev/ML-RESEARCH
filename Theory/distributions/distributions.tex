@@ -1,0 +1,112 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\title{Distributions: A Working Reference}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+For each distribution: density/mass, support, moments, the MLE, and its
+sufficient statistic. \texttt{distributions.py} verifies every moment
+formula empirically. More entries will be added as needed.
+
+\section{Bernoulli$(p)$}
+
+$x \in \{0,1\}$, parameter $p \in (0,1)$:
+\begin{equation}
+  \Pr(x) = p^{x}(1-p)^{1-x},
+  \qquad
+  \mathbb{E}[x] = p,
+  \qquad
+  \mathrm{Var}(x) = p(1-p).
+  \label{eq:bern}
+\end{equation}
+Variance is maximal at $p=\tfrac12$ and vanishes at the deterministic
+endpoints. MLE from $n$ i.i.d.\ samples: $\hat p = m/n$ with
+$m=\sum_i x_i$ (derived in \texttt{bernoulli/}); $m$ is sufficient.
+Exponential-family form with natural parameter the log-odds
+$t = \log\frac{p}{1-p}$ (the logit — the reason the sigmoid keeps
+appearing).
+
+\section{Multinoulli / categorical$(p_1,\dots,p_k)$}
+
+One draw among $k$ outcomes, $\sum_j p_j = 1$. With the one-hot encoding
+$e_x \in \{0,1\}^k$:
+\begin{equation}
+  \Pr(x=j) = p_j,
+  \qquad
+  \mathbb{E}[e_x] = p,
+  \qquad
+  \mathrm{Cov}(e_x)_{ij} =
+  \begin{cases}
+    p_i(1-p_i) & i=j\\[2pt]
+    -\,p_i p_j & i\neq j .
+  \end{cases}
+  \label{eq:multinoulli}
+\end{equation}
+The negative off-diagonal covariance is structural: outcomes compete ---
+one category occurring excludes the others. Over $n$ draws the counts
+$(n_1,\dots,n_k)$ are multinomial and sufficient; the MLE (a constrained
+problem solved with a Lagrange multiplier, cf.\ the optimization note) is
+\begin{equation}
+  \hat p_j \;=\; \frac{n_j}{n}.
+  \label{eq:multimle}
+\end{equation}
+Softmax is to the multinoulli what the sigmoid is to the Bernoulli: the
+map from unconstrained scores to the probability simplex.
+
+\section{Normal $\mathcal{N}(\mu,\sigma^2)$}
+
+$x \in \mathbb{R}$:
+\begin{equation}
+  f(x) = \frac{1}{\sqrt{2\pi}\,\sigma}
+         \exp\!\Bigl(-\frac{(x-\mu)^2}{2\sigma^2}\Bigr),
+  \qquad
+  \mathbb{E}[x]=\mu,\quad \mathrm{Var}(x)=\sigma^2 .
+  \label{eq:normal}
+\end{equation}
+Facts to keep at hand: closed under affine maps
+($ax+b \sim \mathcal{N}(a\mu+b,\, a^2\sigma^2)$); sums of independent
+normals are normal; $68/95/99.7\%$ of mass within $1/2/3$ standard
+deviations; maximizes entropy among densities on $\mathbb{R}$ with fixed
+variance (information-theory note); the CLT makes it the universal limit
+of standardized sums. MLE: $\hat\mu = \bar x$, $\hat\sigma^2 =
+\tfrac1n\sum(x_i-\bar x)^2$ --- biased by design (\texttt{gaussian/});
+$(\sum x_i, \sum x_i^2)$ is sufficient.
+
+\section{Multivariate normal $\mathcal{N}(\mu, \Sigma)$}
+
+$x \in \mathbb{R}^d$, mean $\mu \in \mathbb{R}^d$, covariance
+$\Sigma \succ 0$ symmetric:
+\begin{equation}
+  f(x) = \frac{1}{(2\pi)^{d/2}\,|\Sigma|^{1/2}}
+         \exp\!\Bigl(-\tfrac12 (x-\mu)^\top \Sigma^{-1} (x-\mu)\Bigr).
+  \label{eq:mvn}
+\end{equation}
+$\mathbb{E}[x]=\mu$, $\mathrm{Cov}(x)=\Sigma$. Level sets are ellipsoids
+whose axes are the eigenvectors of $\Sigma$ with half-lengths
+$\propto\sqrt{\lambda_i}$ (drawn by the script). Closed under affine maps:
+$Ax+b \sim \mathcal{N}(A\mu+b,\, A\Sigma A^\top)$; all marginals and
+conditionals are again normal --- the property that makes Gaussians the
+workhorse of tractable multivariate modeling. For Gaussians (and only
+them, among joint normals) uncorrelated $\Rightarrow$ independent. MLE
+from $n$ samples:
+\begin{equation}
+  \hat\mu = \bar x,
+  \qquad
+  \hat\Sigma = \frac1n \sum_{i=1}^n (x_i-\bar x)(x_i-\bar x)^\top ,
+  \label{eq:mvnmle}
+\end{equation}
+again the $1/n$ (biased) form.
+
+\section*{To be added}
+
+Poisson, exponential, uniform, Laplace, Beta/Dirichlet (conjugate priors
+for the two Bernoulli-family entries above), Student-$t$.
+
+\end{document}

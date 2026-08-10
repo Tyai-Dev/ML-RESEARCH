@@ -1,0 +1,150 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\title{Minimization and Maximization Problems:\\
+When Does Setting the Gradient to Zero Work?}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+Every MLE note in this repository solves $\nabla(\cdot) = 0$ at some
+point. This page states precisely when that move is justified, what can go
+wrong, and what replaces it under constraints (Lagrange, KKT).
+\texttt{optimization\_demo.py} demonstrates the failure modes and checks
+the constrained solutions numerically.
+
+\section{Unconstrained problems: stationarity}
+
+Maximization is minimization of the negation, so we speak of
+$\min_\theta f(\theta)$ throughout.
+
+\begin{theorem}[First-order necessary condition, Fermat]
+If $\theta^\ast$ is a local minimizer of differentiable $f$ and lies in
+the \emph{interior} of the domain, then
+\begin{equation}
+  \nabla f(\theta^\ast) = 0 .
+  \label{eq:stationarity}
+\end{equation}
+\end{theorem}
+
+Necessary --- not sufficient. The catalogue of failures:
+\begin{itemize}
+  \item \textbf{Saddles and maxima.} $f(x,y)=x^2-y^2$ has
+    $\nabla f = 0$ at the origin, which is neither (script, panel 1).
+    Second-order check: $\nabla^2 f \succ 0$ at a stationary point
+    $\Rightarrow$ local min; indefinite $\Rightarrow$ saddle.
+  \item \textbf{Boundary optima.} On a constrained domain the minimum can
+    sit on the boundary with $\nabla f \ne 0$ (Section 3 handles this
+    properly).
+  \item \textbf{Non-differentiability.} $f(x)=|x|$ minimizes at $0$ with
+    no derivative there; subgradients ($0 \in \partial f$) generalize
+    \eqref{eq:stationarity}.
+  \item \textbf{Solvable $\ne$ solvable in closed form.} For logistic
+    regression, $\nabla = 0$ has no algebraic solution --- the equation is
+    transcendental. That is not a failure of stationarity but of algebra;
+    it is \emph{why iterative methods exist} (cf.\ the optimizers page).
+    Our Bernoulli/Gaussian MLEs are the lucky cases where the stationary
+    equations untangle.
+\end{itemize}
+
+\section{Convexity: when stationarity is the whole story}
+
+\begin{definition}
+$f$ is \emph{convex} if
+$f(\lambda u + (1-\lambda)v) \le \lambda f(u) + (1-\lambda) f(v)$ for all
+$u,v$ and $\lambda\in[0,1]$. Differentiable characterizations: $f$ convex
+$\iff f(v) \ge f(u) + \nabla f(u)^\top (v-u)$ (tangents underestimate)
+$\iff \nabla^2 f \succeq 0$.
+\end{definition}
+
+\begin{theorem}
+For convex differentiable $f$, every stationary point is a \emph{global}
+minimizer; if $f$ is strictly convex, the minimizer is unique.
+\end{theorem}
+
+This theorem is the license behind every ``set the derivative to zero''
+in this repository: the Bernoulli log-likelihood (strictly concave), the
+Gaussian NLL in each coordinate, least squares with full-rank $X$.
+Two quantitative grades refine convexity, and between them govern
+first-order convergence rates:
+\begin{equation}
+  \underbrace{f(v) \ge f(u) + \nabla f(u)^\top(v-u)
+  + \tfrac{\mu}{2}\lVert v-u\rVert^2}_{\text{$\mu$-strong convexity}},
+  \qquad
+  \underbrace{\lVert\nabla f(u)-\nabla f(v)\rVert
+  \le L \lVert u-v\rVert}_{\text{$L$-smoothness}},
+  \label{eq:strongsmooth}
+\end{equation}
+with condition number $\kappa = L/\mu$: GD contracts the error by
+$(1-1/\kappa)$ per step --- geometry, not luck, sets the speed.
+\emph{Convex on a bounded domain} adds existence: a continuous convex $f$
+on a compact convex set attains its minimum (Weierstrass), even when
+stationarity never fires because the optimum is on the boundary.
+
+\section{Constraints I: equalities and Lagrange multipliers}
+
+Problem: $\min f(\theta)$ s.t.\ $h(\theta)=0$. At a constrained optimum
+nothing can be gained by moving \emph{along the constraint surface}, so
+$\nabla f$ must be normal to it:
+\begin{equation}
+  \nabla f(\theta^\ast) + \lambda\, \nabla h(\theta^\ast) = 0,
+  \qquad h(\theta^\ast) = 0 ,
+  \label{eq:lagrange}
+\end{equation}
+the stationarity of the \emph{Lagrangian}
+$\mathcal{L}(\theta,\lambda) = f(\theta) + \lambda h(\theta)$ in both
+arguments. The multiplier is a price: $\lambda = -\,\partial
+f^\ast/\partial c$ for the perturbed constraint $h = c$. Worked instance
+(script, panel 2): $\min x^2+y^2$ s.t.\ $x+y=1$ gives
+$(x,y) = (\tfrac12,\tfrac12)$, $\lambda = -1$ --- and the multinoulli MLE
+$\hat p_j = n_j/n$ of the distributions page is exactly this machinery
+applied to $\sum_j p_j = 1$.
+
+\section{Constraints II: inequalities and KKT}
+
+Problem: $\min f(\theta)$ s.t.\ $g_i(\theta) \le 0$, $h_j(\theta) = 0$.
+
+\begin{theorem}[Karush--Kuhn--Tucker conditions]
+Under constraint qualification (e.g.\ Slater: some strictly feasible point
+exists, for convex problems), a constrained local optimum
+$\theta^\ast$ admits multipliers $\mu_i, \lambda_j$ with
+\begin{equation}
+  \begin{aligned}
+    &\text{stationarity:}
+    && \nabla f + \textstyle\sum_i \mu_i \nabla g_i
+       + \sum_j \lambda_j \nabla h_j = 0 \\
+    &\text{primal feasibility:}
+    && g_i(\theta^\ast) \le 0, \quad h_j(\theta^\ast) = 0 \\
+    &\text{dual feasibility:}
+    && \mu_i \ge 0 \\
+    &\text{complementary slackness:}
+    && \mu_i\, g_i(\theta^\ast) = 0 \quad \text{for all } i.
+  \end{aligned}
+  \label{eq:kkt}
+\end{equation}
+For convex $f, g_i$ and affine $h_j$, the KKT conditions are necessary
+\emph{and sufficient} for global optimality.
+\end{theorem}
+
+Complementary slackness is the operative line: each inequality is either
+\emph{inactive} ($g_i < 0$, then $\mu_i = 0$ and it might as well not
+exist) or \emph{active} ($g_i = 0$, and $\mu_i \ge 0$ prices it).
+Solving a KKT system means guessing the active set, solving the resulting
+equality problem, and checking signs --- the script's panel 3 walks the
+one-dimensional instance $\min (x-2)^2$ s.t.\ $x \le 1$: the
+unconstrained answer $x=2$ is infeasible, the constraint activates,
+$x^\ast = 1$, $\mu = 2 > 0$. KKT is the grammar under SVMs (support
+vectors are the active constraints), projected methods, and every
+`\,s.t.' in an ML paper; Lagrangian \emph{duality} — maximize
+$\min_\theta \mathcal{L}$ over the multipliers — is its global companion,
+with strong duality under Slater.
+
+\end{document}

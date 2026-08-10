@@ -1,0 +1,143 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+
+\title{Linear Regression:\\
+The Normal Equations, Gradient Methods, and Why the Closed Form\\
+Is Not Always the Right Tool}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Least squares is the rare model with a complete theoretical solution ---
+the normal equations --- and the standard testbed for gradient methods.
+We derive the closed form, reach the same optimum by GD and SGD (with the
+autograd identity check of the Bernoulli and Gaussian notes), and then
+make the practical point: even for this linearly solvable problem there
+are four independent reasons to prefer iterative methods, one of which
+(conditioning) the companion script demonstrates numerically.
+\end{abstract}
+
+\section{Setup}
+
+Data $(x_i, y_i)_{i=1}^n$ with $x_i \in \mathbb{R}^d$ (first coordinate
+fixed to $1$ for the intercept), stacked as $X \in \mathbb{R}^{n\times d}$
+and $y \in \mathbb{R}^n$. Least squares minimizes
+\begin{equation}
+  J(\theta) \;=\; \frac{1}{2n}\,\lVert X\theta - y \rVert^2 .
+  \label{eq:loss}
+\end{equation}
+
+\paragraph{This is also maximum likelihood.} Under the model
+$y_i = x_i^\top\theta + \varepsilon_i$ with
+$\varepsilon_i \sim \mathcal{N}(0, s^2)$ i.i.d., the NLL of the sample is
+$\tfrac12\log(2\pi s^2) + \tfrac{1}{2s^2 n}\sum_i (y_i - x_i^\top\theta)^2$:
+up to constants not involving $\theta$, exactly \eqref{eq:loss}. Least
+squares is the Gaussian-noise instance of the MLE program of the previous
+notes.
+
+\section{Route 1: the theoretical solution}
+
+\begin{proposition}
+If $X$ has full column rank, the unique minimizer of \eqref{eq:loss} is
+\begin{equation}
+  \boxed{\;\hat\theta \;=\; (X^\top X)^{-1} X^\top y\;}
+  \label{eq:normaleq}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+The gradient of \eqref{eq:loss} is
+\begin{equation}
+  \nabla J(\theta) \;=\; \frac1n X^\top (X\theta - y).
+  \label{eq:grad}
+\end{equation}
+Setting it to zero gives the \emph{normal equations}
+$X^\top X\,\theta = X^\top y$. The Hessian $\tfrac1n X^\top X$ is positive
+definite when $X$ has full column rank (for $u \ne 0$,
+$u^\top X^\top X u = \lVert Xu\rVert^2 > 0$), so $J$ is strictly convex
+and the solution of the linear system is its unique minimizer.
+\end{proof}
+
+Geometrically, \eqref{eq:normaleq} makes the residual orthogonal to the
+column space of $X$: $X^\top(y - X\hat\theta) = 0$ --- $\hat y = X\hat\theta$
+is the orthogonal projection of $y$ onto $\mathrm{col}(X)$.
+
+\section{Routes 2--4: gradient methods}
+
+No reparameterization is needed here --- $\theta$ is already
+unconstrained, and \eqref{eq:loss} is smooth and convex.
+
+\textbf{GD} iterates the full gradient \eqref{eq:grad}:
+$\theta \leftarrow \theta - \tfrac{\eta}{n} X^\top(X\theta - y)$, cost
+$O(nd)$ per step, converging linearly (the objective is strongly convex
+when $X^\top X \succ 0$).
+
+\textbf{SGD} replaces \eqref{eq:grad} with the one-sample estimate
+\begin{equation}
+  g_i(\theta) \;=\; (x_i^\top\theta - y_i)\,x_i ,
+  \qquad \mathbb{E}_i[g_i] = \nabla J(\theta),
+  \label{eq:sgdgrad}
+\end{equation}
+cost $O(d)$ per step: the residual on one point, pushed along that point's
+features. As always, a constant step leaves a noise ball; the script
+Polyak-averages the last pass. Mini-batches interpolate.
+
+\textbf{Autograd.} The script writes the per-sample loss
+$\tfrac12(x_i^\top\theta-y_i)^2$ in torch, drives routes 3 and 4 through
+the identical sample schedule, and asserts the trajectories coincide ---
+\texttt{backward()} must produce exactly \eqref{eq:sgdgrad}.
+
+\section{Why not always use the closed form?}
+
+Four independent reasons, in increasing order of importance:
+
+\paragraph{(a) Cost and memory.} Forming $X^\top X$ costs $O(nd^2)$ and
+solving costs $O(d^3)$, with $O(d^2)$ memory. At $d \sim 10^5$
+(text features, genomics, one-hot blowups) that is beyond reach, while an
+SGD step stays $O(d)$.
+
+\paragraph{(b) Conditioning.} Solving the normal equations works with
+$X^\top X$, and
+\begin{equation}
+  \kappa(X^\top X) \;=\; \kappa(X)^2 :
+  \label{eq:cond}
+\end{equation}
+forming the Gram matrix \emph{squares} the condition number, and roughly
+$\log_{10}\kappa$ decimal digits are lost to rounding. The script builds
+two nearly collinear features ($\kappa(X)\sim 10^{5}$, so
+$\kappa(X^\top X)\sim 10^{10}$) and solves in \texttt{float32}: the
+normal-equations solution loses essentially all accuracy, while QR-based
+\texttt{lstsq} --- which orthogonalizes $X$ directly and pays only
+$\kappa(X)$ --- stays correct to several digits. Moral: even when you do
+want the exact solution, you want it via QR/SVD, not via
+$(X^\top X)^{-1}$.
+
+\paragraph{(c) Streaming and online data.} SGD consumes samples as they
+arrive and never materializes the dataset; the closed form needs all of
+$X$ at once. (A middle ground exists --- recursive least squares --- but
+it maintains a $d\times d$ state, inheriting problem (a).)
+
+\paragraph{(d) Generality.} The closed form is a property of \emph{this
+loss}, not a method: add a sigmoid, a hinge, or a hidden layer and it
+disappears, while the gradient recipe --- compose, differentiate, descend
+--- survives unchanged. Practicing it on the one model where we can check
+every step against \eqref{eq:normaleq} is the point of this note.
+
+\section{Experiment}
+
+With $\theta^\ast = (2, 3, -5)$, $n = 2000$, unit noise (seed 7): the
+normal equations, GD, and Polyak-averaged SGD agree to a few $10^{-2}$
+(SGD's noise floor); hand and autograd SGD trajectories coincide to
+$10^{-10}$. The conditioning demo prints the two \texttt{float32} errors
+against a \texttt{float64} reference --- normal equations off by $O(1)$,
+QR off by $O(10^{-4})$ --- realizing \eqref{eq:cond} in twelve lines of
+numpy.
+
+\end{document}

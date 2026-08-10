@@ -1,0 +1,156 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\title{Laws of Learning: LLN, Concentration, Uniform Convergence, PAC}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+Why does minimizing error on a \emph{sample} say anything about error on
+the \emph{distribution}? This page collects the results that answer that,
+in the order they strengthen each other: averages converge (LLN), at a
+quantified exponential rate (Hoeffding, Azuma), uniformly over classes
+(Glivenko--Cantelli), which is exactly what PAC learnability needs.
+\texttt{learning\_theory.py} demonstrates the first three empirically.
+
+\section{Laws of large numbers}
+
+\begin{theorem}[Weak LLN]
+If $x_1,\dots,x_n$ are i.i.d.\ with mean $\mu$ and finite variance, then
+for every $\varepsilon > 0$,
+$\Pr\bigl(|\bar x_n - \mu| > \varepsilon\bigr) \to 0$.
+\end{theorem}
+
+\begin{theorem}[Strong LLN]
+If the $x_i$ are i.i.d.\ with $\mathbb{E}|x_1| < \infty$, then
+$\bar x_n \to \mu$ \emph{almost surely} --- individual sample paths
+converge, not just probabilities (visible in the script's first panel).
+\end{theorem}
+
+\begin{remark}[Beyond i.i.d.]
+Independence can be relaxed: LLNs hold for ergodic stationary sequences
+(Birkhoff), for martingale-difference sequences, and under mixing
+conditions --- what must survive is that dependence decays fast enough for
+averages to stabilize. Azuma's inequality below is the concentration
+counterpart for the martingale case, the standard tool once samples are
+dependent.
+\end{remark}
+
+\section{Concentration: how fast, exactly}
+
+\begin{theorem}[Hoeffding's inequality]
+Let $x_1,\dots,x_n$ be independent with $x_i \in [a_i,b_i]$. Then for all
+$\varepsilon>0$,
+\begin{equation}
+  \Pr\Bigl(\,\bigl|\bar x_n - \mathbb{E}\bar x_n\bigr| \ge \varepsilon\Bigr)
+  \;\le\;
+  2\exp\!\Bigl(-\frac{2n^2\varepsilon^2}{\sum_i (b_i-a_i)^2}\Bigr)
+  \;\overset{[0,1]}{=}\;
+  2e^{-2n\varepsilon^2}.
+  \label{eq:hoeffding}
+\end{equation}
+\end{theorem}
+
+The LLN says the tail vanishes; Hoeffding says \emph{exponentially fast},
+with explicit constants and no variance knowledge --- only boundedness.
+Inverting \eqref{eq:hoeffding}: with probability $1-\delta$,
+$|\bar x_n - \mu| \le \sqrt{\log(2/\delta)/2n}$ --- the ubiquitous
+$1/\sqrt{n}$ of statistics. (Proof route: Chernoff's method,
+$\Pr(S\ge\varepsilon) \le e^{-\lambda\varepsilon}\mathbb{E}e^{\lambda S}$,
+plus Hoeffding's lemma $\mathbb{E}e^{\lambda(x-\mathbb{E}x)} \le
+e^{\lambda^2(b-a)^2/8}$, then optimize $\lambda$.)
+
+\begin{theorem}[Azuma--Hoeffding]
+Let $M_0, M_1, \dots$ be a martingale with bounded differences
+$|M_k - M_{k-1}| \le c_k$. Then
+\begin{equation}
+  \Pr\bigl(|M_n - M_0| \ge \varepsilon\bigr)
+  \;\le\; 2\exp\!\Bigl(-\frac{\varepsilon^2}{2\sum_k c_k^2}\Bigr).
+  \label{eq:azuma}
+\end{equation}
+\end{theorem}
+
+Hoeffding for dependent-but-martingale increments. Its workhorse corollary
+(McDiarmid): any function of independent variables that changes by at most
+$c_i$ when one coordinate changes concentrates around its mean --- the
+tool behind generalization bounds for quantities that are not plain
+averages.
+
+\section{Uniform convergence: Glivenko--Cantelli}
+
+Hoeffding controls \emph{one} fixed quantity. Learning selects a
+hypothesis from a whole class \emph{after} seeing data, so we need
+convergence \emph{simultaneously} over the class.
+
+\begin{theorem}[Glivenko--Cantelli]
+For i.i.d.\ samples with CDF $F$ and empirical CDF
+$F_n(t) = \tfrac1n\#\{i : x_i \le t\}$,
+\begin{equation}
+  \sup_{t\in\mathbb{R}}\, \bigl|F_n(t) - F(t)\bigr|
+  \;\xrightarrow{\;a.s.\;}\; 0 ,
+  \label{eq:gc}
+\end{equation}
+and quantitatively (Dvoretzky--Kiefer--Wolfowitz),
+$\Pr(\sup_t |F_n - F| > \varepsilon) \le 2e^{-2n\varepsilon^2}$ --- the
+same exponent as \eqref{eq:hoeffding}, despite the supremum over
+infinitely many events.
+\end{theorem}
+
+\begin{definition}[Glivenko--Cantelli class]
+A function class $\mathcal{F}$ is GC for a distribution $D$ if
+$\sup_{f\in\mathcal{F}} \bigl|\tfrac1n\sum_i f(x_i) -
+\mathbb{E}_D f\bigr| \to 0$ (in probability / a.s.).
+\end{definition}
+
+The classical theorem says the indicators
+$\{\,\mathbf{1}[x\le t] : t\in\mathbb{R}\,\}$ form a GC class. Which
+classes are GC is \emph{the} question of learning theory; the answer is
+measured by combinatorial capacity --- finite VC dimension implies GC with
+rate $\sqrt{(\text{VC}\log n)/n}$ --- and capacity is what
+sample-complexity bounds charge for.
+
+\section{PAC learning}
+
+\begin{definition}[PAC learnability]
+A hypothesis class $\mathcal{H}$ is PAC learnable if there is an algorithm
+$A$ and sample complexity $n(\varepsilon,\delta)$ such that for every
+distribution $D$ and every $\varepsilon, \delta \in (0,1)$: given
+$n \ge n(\varepsilon,\delta)$ i.i.d.\ samples, with probability at least
+$1-\delta$ the output $\hat h = A(S)$ satisfies
+\begin{equation}
+  L_D(\hat h) \;\le\; \min_{h\in\mathcal{H}} L_D(h) + \varepsilon .
+  \label{eq:pac}
+\end{equation}
+\end{definition}
+
+``Probably ($1-\delta$) Approximately ($\varepsilon$) Correct.'' The
+pieces above assemble into the fundamental result: if $\mathcal{H}$ is a
+GC class, the \emph{empirical risk minimizer}
+$\hat h = \arg\min_{h} \tfrac1n\sum_i \ell(h, x_i)$ PAC-learns
+$\mathcal{H}$, because uniform convergence makes empirical risks a
+trustworthy proxy for true risks across the whole class at once. Two
+standard sample complexities (0--1 loss):
+\begin{equation}
+  n \;=\; O\!\Bigl(\tfrac{\log|\mathcal{H}| + \log(1/\delta)}
+  {\varepsilon^2}\Bigr)
+  \;\;\text{(finite class)},
+  \qquad
+  n \;=\; O\!\Bigl(\tfrac{\mathrm{VC}(\mathcal{H}) + \log(1/\delta)}
+  {\varepsilon^2}\Bigr),
+  \label{eq:samplecomplexity}
+\end{equation}
+with $\varepsilon^2 \to \varepsilon$ in the realizable (zero-error) case.
+The fundamental theorem of PAC learning closes the loop: for binary
+classification, \emph{learnable $\iff$ finite VC dimension $\iff$ uniform
+convergence} --- capacity, not cleverness of the algorithm, decides
+learnability.
+
+\end{document}

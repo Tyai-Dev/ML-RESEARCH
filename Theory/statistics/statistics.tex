@@ -1,0 +1,128 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\title{Statistics for ML: Estimators, Sufficiency, Information}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+The estimation vocabulary the MLE experiments keep touching, collected in
+one place. \texttt{statistics\_demo.py} verifies the quantitative claims.
+
+\section{Estimators and their quality}
+
+An \emph{estimator} is any function $\hat\theta = T(x_1,\dots,x_n)$ of the
+sample, targeting a parameter $\theta$. Its basic report card:
+\begin{equation}
+  \mathrm{bias}(\hat\theta) = \mathbb{E}[\hat\theta] - \theta,
+  \qquad
+  \mathrm{Var}(\hat\theta) = \mathbb{E}\bigl[(\hat\theta -
+  \mathbb{E}\hat\theta)^2\bigr],
+\end{equation}
+combined by the decomposition (expand the square around
+$\mathbb{E}\hat\theta$; the cross term vanishes):
+\begin{equation}
+  \boxed{\;\mathrm{MSE}(\hat\theta)
+  \;=\; \mathbb{E}\bigl[(\hat\theta-\theta)^2\bigr]
+  \;=\; \mathrm{bias}^2 + \mathrm{Var} .\;}
+  \label{eq:msedecomp}
+\end{equation}
+\emph{Consistency}: $\hat\theta_n \to \theta$ in probability as
+$n\to\infty$ --- the LLN in estimator's clothing.
+
+\begin{remark}[Unbiasedness is a choice, not a virtue]
+The Gaussian variance MLE $\tfrac1n\sum(x_i-\bar x)^2$ has
+$\mathbb{E} = \tfrac{n-1}{n}\sigma^2$ (biased); Bessel's
+$\tfrac{1}{n-1}$ fixes the bias --- yet the script measures the
+\emph{biased} estimator to have the lower MSE at small $n$. Trading a
+little bias for less variance is often the better deal
+\eqref{eq:msedecomp}; regularization is this trade, industrialized.
+\end{remark}
+
+\section{Sufficiency}
+
+\begin{definition}
+$T(x_{1:n})$ is \emph{sufficient} for $\theta$ if the conditional
+distribution of the sample given $T$ does not depend on $\theta$ ---
+once you know $T$, the rest of the data carries no further information
+about $\theta$.
+\end{definition}
+
+\begin{theorem}[Fisher--Neyman factorization]
+$T$ is sufficient for $\theta$ iff the likelihood factors as
+\begin{equation}
+  L(\theta; x_{1:n}) \;=\; g\bigl(T(x_{1:n}), \theta\bigr)\,h(x_{1:n}),
+  \label{eq:factorization}
+\end{equation}
+with $h$ free of $\theta$.
+\end{theorem}
+
+Read off our worked examples: Bernoulli
+$L = p^m(1-p)^{n-m}$ --- take $T=m$, $h\equiv 1$; Gaussian --- expanding
+the exponent leaves $\theta$ multiplying only $\sum x_i$ and
+$\sum x_i^2$, so that pair is sufficient. This is why both MLEs are
+formulas in one or two summaries of the data rather than the data itself.
+(Rao--Blackwell sharpens the point: conditioning any unbiased estimator on
+a sufficient statistic never increases its variance --- good estimators
+factor through $T$.)
+
+\section{Fisher information and the Cram\'er--Rao bound}
+
+\begin{definition}
+The \emph{score} is $\partial_\theta \log f(x;\theta)$; it has mean zero.
+The \emph{Fisher information} per sample is its variance,
+\begin{equation}
+  I(\theta)
+  \;=\; \mathbb{E}\Bigl[\bigl(\partial_\theta \log f(x;\theta)\bigr)^2\Bigr]
+  \;=\; -\,\mathbb{E}\bigl[\partial_\theta^2 \log f(x;\theta)\bigr],
+  \label{eq:fisher}
+\end{equation}
+the second form under regularity. For $n$ i.i.d.\ samples information
+adds: $I_n = n I(\theta)$.
+\end{definition}
+
+Intuition: $I$ measures how sharply the log-likelihood peaks --- how
+loudly one sample speaks about $\theta$. Bernoulli:
+$I(p) = \tfrac{1}{p(1-p)}$ (extreme $p$ are \emph{more} informative per
+sample). Gaussian mean: $I(\mu) = 1/\sigma^2$.
+
+\begin{theorem}[Cram\'er--Rao]
+For any \emph{unbiased} estimator $\hat\theta$ under regularity
+conditions,
+\begin{equation}
+  \boxed{\;\mathrm{Var}(\hat\theta) \;\ge\; \frac{1}{n\,I(\theta)} .\;}
+  \label{eq:crlb}
+\end{equation}
+\end{theorem}
+
+An estimator achieving \eqref{eq:crlb} is \emph{efficient}. The Bernoulli
+MLE $\hat p = \bar x$ is exactly efficient:
+$\mathrm{Var}(\bar x) = p(1-p)/n = 1/(nI(p))$ --- the script's second
+panel shows the empirical variance sitting on the bound at every $n$.
+
+\section{Asymptotics of the MLE}
+
+Under regularity, the MLE is consistent and asymptotically normal:
+\begin{equation}
+  \sqrt{n}\,\bigl(\hat\theta_{\mathrm{MLE}} - \theta\bigr)
+  \;\xrightarrow{\;d\;}\;
+  \mathcal{N}\!\bigl(0,\; I(\theta)^{-1}\bigr),
+  \label{eq:mleasymp}
+\end{equation}
+i.e.\ the MLE attains the Cram\'er--Rao limit \emph{asymptotically} even
+when no finite-$n$ efficient estimator exists --- the deep reason maximum
+likelihood is the default: nothing does better in the limit. Two
+practical corollaries: standard errors
+$\approx \sqrt{1/(n\hat I)}$, and the invariance property (the MLE of
+$g(\theta)$ is $g(\hat\theta)$) used by every reparameterization in our
+experiments.
+
+\end{document}

@@ -1,0 +1,152 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newcommand{\xbar}{\bar{x}}
+
+\title{Gaussian Maximum-Likelihood Estimation:\\
+Closed Form, Gradient Descent, SGD, and Autograd}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The Bernoulli program (\texttt{bernoulli/}) repeated for the 1D normal
+distribution: derive the closed-form MLE of $(\mu,\sigma)$, reach the same
+optimum by gradient descent and by SGD on the negative log-likelihood, and
+verify that PyTorch autograd reproduces the hand-derived gradients to
+floating-point precision. New here: a two-dimensional parameter, and the
+fact that the MLE of the variance is the \emph{biased} $1/n$ estimator.
+\end{abstract}
+
+\section{Setup: from the likelihood to the NLL}
+
+Let $x_1,\dots,x_n \overset{\text{iid}}{\sim} \mathcal{N}(\mu,\sigma^2)$
+with density
+$f(x) = \tfrac{1}{\sqrt{2\pi}\,\sigma}
+\exp\!\bigl(-(x-\mu)^2/2\sigma^2\bigr)$. By independence,
+\begin{equation}
+  L(\mu,\sigma)
+  \;=\; \prod_{i=1}^n f(x_i)
+  \;=\; (2\pi)^{-n/2}\,\sigma^{-n}
+        \exp\!\Bigl(-\tfrac{1}{2\sigma^2}\sum_{i=1}^n (x_i-\mu)^2\Bigr).
+  \label{eq:likelihood}
+\end{equation}
+Taking $\log$ (strictly increasing: same maximizer), dividing by $n>0$ and
+negating (neither moves the optimizer — the same three steps as in the
+Bernoulli note) gives the average negative log-likelihood
+\begin{equation}
+  \mathcal{L}(\mu,\sigma)
+  \;=\; \tfrac12\log(2\pi) + \log\sigma
+        + \frac{1}{2\sigma^2}\cdot\frac1n\sum_{i=1}^n (x_i-\mu)^2 .
+  \label{eq:nll}
+\end{equation}
+Expanding $(x_i-\mu)^2$ shows the data enters only through
+$\sum_i x_i$ and $\sum_i x_i^2$: a two-dimensional sufficient statistic.
+
+\section{Route 1: the theoretical solution}
+
+\begin{proposition}
+The unique MLE is
+\begin{equation}
+  \boxed{\;\hat\mu = \xbar, \qquad
+  \hat\sigma^2 = \frac1n\sum_{i=1}^n (x_i-\xbar)^2 . \;}
+  \label{eq:mle}
+\end{equation}
+\end{proposition}
+
+\begin{proof}
+Differentiate \eqref{eq:nll} in $\mu$:
+\begin{equation*}
+  \frac{\partial\mathcal{L}}{\partial\mu}
+  = \frac{1}{\sigma^2}\cdot\frac1n\sum_i(\mu - x_i)
+  = \frac{\mu-\xbar}{\sigma^2} = 0
+  \;\Longrightarrow\; \mu = \xbar
+\end{equation*}
+(for every $\sigma$, so the two equations decouple). Differentiate in
+$\sigma$ at $\mu=\xbar$, writing $v = \tfrac1n\sum_i (x_i-\xbar)^2$:
+\begin{equation*}
+  \frac{\partial\mathcal{L}}{\partial\sigma}
+  = \frac{1}{\sigma} - \frac{v}{\sigma^{3}} = 0
+  \;\Longrightarrow\; \sigma^{2} = v .
+\end{equation*}
+For uniqueness, $\mathcal{L}(\xbar,\sigma)$ has derivative
+$(\sigma^2-v)/\sigma^3$: negative for $\sigma^2<v$, positive for
+$\sigma^2>v$, so $v$ is the unique minimum in $\sigma$; and for each
+$\sigma$ the map $\mu\mapsto\mathcal{L}$ is a strictly convex parabola
+minimized at $\xbar$.
+\end{proof}
+
+\paragraph{The $1/n$ is not a mistake.}
+$\mathbb{E}[\hat\sigma^2] = \tfrac{n-1}{n}\sigma^2$: the MLE of the
+variance is \emph{biased}. Bessel's $\tfrac{1}{n-1}$ correction is a
+different estimator, chosen to be unbiased; maximum likelihood genuinely
+produces $1/n$. (The script prints both.)
+
+\section{Route 2: gradient descent}
+
+$\mu$ is already unconstrained; $\sigma>0$ is not. Exactly as Bernoulli's
+$p=\operatorname{sigmoid}(t)$, we evaluate the \emph{same} NLL in an
+unconstrained coordinate, $\sigma = e^{s}$:
+\begin{equation}
+  F(\mu, s) \;=\; \mathcal{L}(\mu, e^{s})
+  \;=\; \tfrac12\log(2\pi) + s
+        + \frac{1}{2e^{2s}}\cdot\frac1n\sum_i (x_i-\mu)^2 .
+  \label{eq:reparam}
+\end{equation}
+Chain rule ($\partial\sigma/\partial s = e^s$):
+\begin{equation}
+  \frac{\partial F}{\partial \mu} = \frac{\mu-\xbar}{e^{2s}},
+  \qquad
+  \frac{\partial F}{\partial s}
+  = 1 - \frac{1}{e^{2s}}\cdot\frac1n\sum_i (x_i-\mu)^2 .
+  \label{eq:grad}
+\end{equation}
+Setting both to zero reproduces \eqref{eq:mle} — a consistency check on
+the derivation. GD iterates the full gradient
+$(\mu, s) \leftarrow (\mu, s) - \eta\,\nabla F$ and converges to it
+deterministically (both coordinates visible in the middle panel of the
+script's figure).
+
+\section{Route 3: stochastic gradient descent}
+
+Replace the full gradient with the one-sample estimate. Per sample $i$,
+$F_i(\mu,s) = s + (x_i-\mu)^2/(2e^{2s}) + \mathrm{const}$, so
+\begin{equation}
+  g_i \;=\; \Bigl(\;\frac{\mu - x_i}{e^{2s}}\;,\;\;
+             1 - \frac{(x_i-\mu)^2}{e^{2s}}\;\Bigr),
+  \qquad \mathbb{E}_i[g_i] = \nabla F ,
+  \label{eq:sgdgrad}
+\end{equation}
+an unbiased but noisy direction. With a constant step the iterate hovers
+in a noise ball around \eqref{eq:mle}; averaging the final pass's iterates
+(Polyak--Ruppert) cancels the hovering. Mini-batches would average $g_i$
+over a batch — same expectation, variance $\div\,|B|$; engineering, not
+new mathematics.
+
+\section{Route 4: SGD with autograd}
+
+The script writes the per-sample loss \emph{verbatim} as
+$s + (x_i-\mu)^2/(2e^{2s})$ in torch and lets \texttt{backward()}
+differentiate the composition: it must produce exactly
+\eqref{eq:sgdgrad}. Driving routes 3 and 4 through the identical sample
+schedule, step size, and initialization, the asserted bound
+$\max_k \lVert\theta_k^{\text{hand}} - \theta_k^{\text{autograd}}\rVert
+< 10^{-10}$ passes — autograd mechanizes the chain rule; it does not
+change the mathematics.
+
+\section{Experiment}
+
+With $(\mu,\sigma) = (2, 1.5)$ and $n = 5000$ (seed 7): the closed form
+gives $(\hat\mu,\hat\sigma) \approx (2.011, 1.502)$; GD converges to it in
+a few hundred steps; SGD's Polyak average lands within a few $10^{-2}$
+(the variance coordinate is noisier than the mean's); and the hand and
+autograd trajectories coincide exactly. Same story as Bernoulli, one
+dimension higher: the likelihood surface decides, the optimizer only
+travels.
+
+\end{document}
