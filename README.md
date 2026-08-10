@@ -94,8 +94,10 @@ the right:
 
 ```sh
 mlr studio new bernoulli-mle    # creates studio/bernoulli-mle/{main.ipynb, main.tex}
-                                #   and opens both in VS Code (split them once; it sticks)
-mlr paper studio/bernoulli-mle  # compile the draft tex anytime
+mlr studio open                 # launches JupyterLab with both files (F5 does this too);
+                                #   right-click main.tex -> Show LaTeX Preview for a live
+                                #   PDF pane; arrange once, the layout persists
+mlr paper studio/bernoulli-mle  # compile the draft tex from the terminal anytime
 mlr studio graduate bernoulli-mle mle   # done exploring? promote it:
 ```
 

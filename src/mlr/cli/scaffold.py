@@ -194,6 +194,11 @@ _STUDIO_NOTEBOOK = """\
 """
 
 
+def _write(path: Path, content: str) -> None:
+    # always UTF-8: Windows' locale default (cp1252) breaks Jupyter and LaTeX
+    path.write_text(content, encoding="utf-8")
+
+
 def _kebab(name: str) -> str:
     return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
 
@@ -229,10 +234,11 @@ def new_experiment(
     path = exp_dir / f"{_kebab(name)}.yaml"
     if path.exists():
         raise FileExistsError(f"experiment already exists: {path}")
-    path.write_text(
+    _write(
+        path,
         _EXPERIMENT_TEMPLATE.format(
             name=_kebab(name), topic=_kebab(topic), model=model, dataset=dataset
-        )
+        ),
     )
     return path
 
@@ -243,20 +249,21 @@ def new_model(root: Path, name: str) -> Path:
     path = root / "src" / "mlr" / "models" / "pure" / f"{snake}.py"
     if path.exists():
         raise FileExistsError(f"model already exists: {path}")
-    path.write_text(
+    _write(
+        path,
         _MODEL_TEMPLATE.format(
             title=kebab.replace("-", " ").title(),
             kebab=kebab,
             classname=_classname(name),
-        )
+        ),
     )
     init = root / "src" / "mlr" / "__init__.py"
     marker = f"from mlr.models.pure import {snake} as _{snake}  # noqa: F401  (registers models)\n"
-    content = init.read_text()
+    content = init.read_text(encoding="utf-8")
     if marker not in content:
         anchor = "__version__"
         content = content.replace(anchor, marker + "\n" + anchor, 1)
-        init.write_text(content)
+        _write(init, content)
     return path
 
 
@@ -268,10 +275,8 @@ def new_studio(root: Path, slug: str) -> Path:
         raise FileExistsError(f"studio already exists: {studio_dir}")
     studio_dir.mkdir(parents=True)
     title = slug.replace("-", " ").title()
-    (studio_dir / "main.tex").write_text(
-        _STUDIO_TEX_TEMPLATE.format(title=title, slug=slug)
-    )
-    (studio_dir / "main.ipynb").write_text(_STUDIO_NOTEBOOK.format(title=title))
+    _write(studio_dir / "main.tex", _STUDIO_TEX_TEMPLATE.format(title=title, slug=slug))
+    _write(studio_dir / "main.ipynb", _STUDIO_NOTEBOOK.format(title=title))
     return studio_dir
 
 
@@ -299,9 +304,10 @@ def graduate_studio(root: Path, slug: str, topic: str) -> dict[str, Path]:
         new_topic(root, topic)
 
     paper_dir = new_paper(root, topic, slug, slug.replace("-", " ").title())
-    tex = (studio_dir / "main.tex").read_text()
-    (paper_dir / "main.tex").write_text(
-        tex.replace("../../research/papers-common/", "../../../papers-common/")
+    tex = (studio_dir / "main.tex").read_text(encoding="utf-8")
+    _write(
+        paper_dir / "main.tex",
+        tex.replace("../../research/papers-common/", "../../../papers-common/"),
     )
 
     notebooks_dir = topic_dir / "notebooks"
@@ -327,7 +333,7 @@ def new_paper(root: Path, topic: str, slug: str, title: str, assets: bool = Fals
     nn = max(numbers, default=0) + 1
     paper_dir = papers_dir / f"{nn:02d}-{_kebab(slug)}"
     paper_dir.mkdir()
-    (paper_dir / "main.tex").write_text(_PAPER_TEMPLATE.format(title=title))
+    _write(paper_dir / "main.tex", _PAPER_TEMPLATE.format(title=title))
     if assets:
-        (paper_dir / "generate_assets.py").write_text(_ASSETS_TEMPLATE)
+        _write(paper_dir / "generate_assets.py", _ASSETS_TEMPLATE)
     return paper_dir

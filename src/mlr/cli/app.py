@@ -278,22 +278,35 @@ def studio_graduate(slug: str, topic: str) -> None:
 
 
 def _studio_open_dir(studio_dir) -> None:
-    import shutil
-    import subprocess
+    """Launch the studio: JupyterLab with the notebook and tex opened.
 
-    code = shutil.which("code")
-    if code is None:
-        console.print(
-            f"open these side by side:\n  {studio_dir / 'main.ipynb'}\n  {studio_dir / 'main.tex'}"
-        )
-        return
-    subprocess.run(
-        [code, "-r", str(studio_dir / "main.ipynb"), str(studio_dir / "main.tex")],
-        check=False,
-    )
+    Runs in the foreground — the terminal shows the server log and Ctrl+C
+    (or the debugger's stop button under F5) shuts the studio down. The
+    LaTeX preview comes from jupyterlab-latex: right-click main.tex ->
+    'Show LaTeX Preview'; pane layout persists in the Lab workspace.
+    """
+    import subprocess
+    import sys
+
+    root = actions.repo_root()
+    rel = studio_dir.relative_to(root)
+    console.print(f"launching JupyterLab studio: [bold]{studio_dir.name}[/bold]")
     console.print(
-        "opened in VS Code — drag one tab to the side for the split view "
-        "(notebook left, tex right); the layout sticks."
+        "first time: right-click main.tex -> [cyan]Show LaTeX Preview[/cyan], "
+        "arrange panes once — the layout sticks."
+    )
+    console.print("[dim]Ctrl+C stops the studio server[/dim]")
+    subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "jupyter",
+            "lab",
+            str(rel / "main.ipynb"),
+            str(rel / "main.tex"),
+        ],
+        cwd=root,
+        check=False,
     )
 
 
