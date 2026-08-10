@@ -24,6 +24,21 @@ blackboard --root <dir>       # or point it anywhere
 Or press F5 in VS Code ("blackboard" — uses blackboard/workspace/).
 Serves on http://127.0.0.1:8321 (local only) and opens the browser.
 
+## Editing & assistant
+
+- **Autosave** — every edit (cells or tex) saves ~1s after you stop typing;
+  switching files or closing the tab flushes first. The header shows
+  "unsaved… / all saved".
+- **Editor smarts** — Enter auto-indents (extra level after `:`, dedent after
+  `return`/`pass`), Tab/Shift+Tab indent/dedent; each code cell has a
+  **fix** button (ruff format + safe autofixes, remaining diagnostics shown
+  under the cell; kernel-provided names like `np` aren't flagged).
+- **Assistant** — the header's *assistant* tab is a streaming Claude chat
+  (`claude-opus-5`; override with `BLACKBOARD_MODEL`). "Attach board" sends
+  your current cells + tex as context; any fenced code block in a reply has
+  an **→ insert as cell** button. Requires `ANTHROPIC_API_KEY` (or an
+  `ant auth login` profile) in the environment that launches blackboard.
+
 ## Architecture
 
 ```

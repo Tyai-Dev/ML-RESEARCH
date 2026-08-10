@@ -15,7 +15,7 @@ from pathlib import Path
 
 import nbformat
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, HTMLResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from pydantic import BaseModel
 
 from blackboard.kernel import Kernel
@@ -181,6 +181,35 @@ def execute(req: Execute) -> dict:
         "ok": result.ok, "stdout": result.stdout, "value": result.value,
         "error": result.error, "images": result.images,
     }
+
+
+class Fix(BaseModel):
+    code: str
+
+
+@app.post("/api/fix")
+def fix(req: Fix) -> dict:
+    from blackboard.fixer import fix_code
+
+    return fix_code(req.code)
+
+
+class Chat(BaseModel):
+    messages: list[dict]
+    context: str | None = None
+
+
+@app.post("/api/chat")
+def chat(req: Chat) -> StreamingResponse:
+    from blackboard.chat import ChatError, stream_chat
+
+    if not req.messages:
+        raise HTTPException(400, "empty conversation")
+    try:
+        chunks = stream_chat(req.messages, context=req.context)
+    except ChatError as exc:
+        raise HTTPException(503, str(exc))
+    return StreamingResponse(chunks, media_type="text/plain; charset=utf-8")
 
 
 @app.post("/api/reset")
