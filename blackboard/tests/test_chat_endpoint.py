@@ -13,10 +13,11 @@ def client(tmp_path, monkeypatch):
 def test_chat_streams_chunks(client, monkeypatch):
     import blackboard.chat as chat_mod
 
-    def fake_stream(messages, context=None, provider="claude"):
+    def fake_stream(messages, context=None, provider="claude", root=None):
         assert messages[-1]["content"] == "hello"
         assert context == "some board"
         assert provider == "gemini"
+        assert root is not None  # server passes the workspace for tools
         yield "chalk "
         yield "reply"
 
@@ -36,7 +37,7 @@ def test_chat_streams_chunks(client, monkeypatch):
 def test_chat_config_error_becomes_503(client, monkeypatch):
     import blackboard.chat as chat_mod
 
-    def fake_stream(messages, context=None, provider="claude"):
+    def fake_stream(messages, context=None, provider="claude", root=None):
         raise chat_mod.ChatError("No claude API credentials.")
 
     monkeypatch.setattr(chat_mod, "stream_chat", fake_stream)

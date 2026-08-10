@@ -34,7 +34,8 @@ Serves on http://127.0.0.1:8321 (local only) and opens the browser.
   **fix** button (ruff format + safe autofixes, remaining diagnostics shown
   under the cell; kernel-provided names like `np` aren't flagged).
 - **Assistant** — a terminal-style dock under the notebook (click the
-  "assistant" bar or Ctrl+`): streaming chat with a provider dropdown —
+  "assistant" bar or Ctrl+`; drag its top edge to resize): streaming chat
+  with a provider dropdown —
   **claude** (`claude-opus-5`), **openai** (`gpt-5`), **gemini**
   (`gemini-2.5-pro`); override models with `BLACKBOARD_*_MODEL` vars.
   "Attach board" sends your current cells + tex as context; fenced code
@@ -44,6 +45,11 @@ Serves on http://127.0.0.1:8321 (local only) and opens the browser.
   `ANTHROPIC_API_KEY` (platform.claude.com -> Settings -> API keys),
   `OPENAI_API_KEY` (platform.openai.com/api-keys),
   `GEMINI_API_KEY` (aistudio.google.com/apikey).
+- **Assistant file editing** (claude provider) — the assistant has tools to
+  read/write workspace files and add/edit notebook cells, so "add a cell
+  that plots the loss" or "write the proof into main.tex" edits the real
+  files; each action shows as a ⚙ line in the chat and the open files
+  reload automatically. Everything is sandboxed to the workspace directory.
 
 ## Architecture
 

@@ -60,21 +60,51 @@ def _system_text(context: str | None) -> str:
 
 # ---------------------------------------------------------------- claude
 
-def _stream_claude(messages: list[dict], context: str | None) -> Iterator[str]:
+_TOOLS_ADDENDUM = """
+
+You can act on the workspace directly with tools: read_file, write_file, \
+add_notebook_cell, edit_notebook_cell. When the user asks you to add cells, \
+change the notebook, or write/extend a tex file, USE THE TOOLS to apply the \
+change to the actual files — the UI reloads them automatically, so never \
+print the content into the chat instead of applying it. The attached board \
+labels notebook cells 'cell N'; tool indices are 0-based, so that is index \
+N-1. write_file overwrites whole files: read or reuse the attached content \
+and write the complete result. Use plain code blocks only when the user \
+wants to discuss code without applying it.\
+"""
+
+_MAX_TOOL_ROUNDS = 8
+
+
+def _stream_claude(
+    messages: list[dict], context: str | None, root=None
+) -> Iterator[str]:
     import anthropic
+
+    from blackboard import tools as bb_tools
 
     # static prompt first + cache breakpoint, volatile board context after
     system: list[dict] = [
-        {"type": "text", "text": _SYSTEM, "cache_control": {"type": "ephemeral"}}
+        {
+            "type": "text",
+            "text": _SYSTEM + (_TOOLS_ADDENDUM if root else ""),
+            "cache_control": {"type": "ephemeral"},
+        }
     ]
     if context:
         system.append({"type": "text", "text": f"Current board:\n\n{context}"})
 
+    convo = [dict(m) for m in messages]
+    request = dict(
+        model=MODELS["claude"],
+        max_tokens=64000,
+        system=system,
+        tools=bb_tools.DEFINITIONS if root else [],
+    )
+
     client = anthropic.Anthropic()
     try:
-        manager = client.messages.stream(
-            model=MODELS["claude"], max_tokens=64000, system=system, messages=messages
-        )
+        manager = client.messages.stream(messages=convo, **request)
         stream = manager.__enter__()  # request sent here; auth errors raise now
     except (anthropic.AuthenticationError, TypeError) as exc:
         raise _no_key("claude") from exc
@@ -84,16 +114,46 @@ def _stream_claude(messages: list[dict], context: str | None) -> Iterator[str]:
         raise ChatError(f"Claude API error ({exc.status_code}): {exc.message}") from exc
 
     def generate() -> Iterator[str]:
-        try:
-            for text in stream.text_stream:
-                yield text
-            final = stream.get_final_message()
-            if final.stop_reason == "refusal":
-                yield "\n\n*[the assistant declined this request]*"
-            elif final.stop_reason == "max_tokens":
-                yield "\n\n*[response hit the length limit]*"
-        finally:
-            manager.__exit__(None, None, None)
+        nonlocal manager, stream
+        for _ in range(_MAX_TOOL_ROUNDS):
+            try:
+                for text in stream.text_stream:
+                    yield text
+                final = stream.get_final_message()
+            finally:
+                manager.__exit__(None, None, None)
+
+            if final.stop_reason != "tool_use":
+                if final.stop_reason == "refusal":
+                    yield "\n\n*[the assistant declined this request]*"
+                elif final.stop_reason == "max_tokens":
+                    yield "\n\n*[response hit the length limit]*"
+                return
+
+            convo.append({"role": "assistant", "content": final.content})
+            results = []
+            for block in final.content:
+                if block.type != "tool_use":
+                    continue
+                out, is_error = bb_tools.execute(root, block.name, block.input)
+                yield f"\n⚙ {block.name} → {out}\n"
+                result = {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": out,
+                }
+                if is_error:
+                    result["is_error"] = True
+                results.append(result)
+            convo.append({"role": "user", "content": results})
+
+            try:
+                manager = client.messages.stream(messages=convo, **request)
+                stream = manager.__enter__()
+            except Exception as exc:  # mid-stream errors surface as text
+                yield f"\n\n*[assistant error: {exc}]*"
+                return
+        yield "\n\n*[stopped after too many tool rounds]*"
 
     return generate()
 
@@ -166,18 +226,24 @@ def _stream_gemini(messages: list[dict], context: str | None) -> Iterator[str]:
     return generate()
 
 
-_PROVIDERS = {
-    "claude": _stream_claude,
-    "openai": _stream_openai,
-    "gemini": _stream_gemini,
-}
-
-
 def stream_chat(
-    messages: list[dict], context: str | None = None, provider: str = "claude"
+    messages: list[dict],
+    context: str | None = None,
+    provider: str = "claude",
+    root=None,
 ) -> Iterator[str]:
     """Yield response text chunks; raises ChatError before the first chunk
-    for auth/config problems so the server can return a proper status."""
-    if provider not in _PROVIDERS:
-        raise ChatError(f"unknown provider {provider!r}; use one of {sorted(_PROVIDERS)}")
-    return _PROVIDERS[provider](messages, context)
+    for auth/config problems so the server can return a proper status.
+
+    ``root`` (a workspace Path) enables file-editing tools — currently on
+    the claude provider; openai/gemini are chat-only.
+    """
+    if provider == "claude":
+        return _stream_claude(messages, context, root=root)
+    if provider == "openai":
+        return _stream_openai(messages, context)
+    if provider == "gemini":
+        return _stream_gemini(messages, context)
+    raise ChatError(
+        f"unknown provider {provider!r}; use one of ['claude', 'gemini', 'openai']"
+    )

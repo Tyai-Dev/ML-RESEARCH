@@ -207,7 +207,9 @@ def chat(req: Chat) -> StreamingResponse:
     if not req.messages:
         raise HTTPException(400, "empty conversation")
     try:
-        chunks = stream_chat(req.messages, context=req.context, provider=req.provider)
+        chunks = stream_chat(
+            req.messages, context=req.context, provider=req.provider, root=ROOT
+        )
     except ChatError as exc:
         raise HTTPException(503, str(exc))
     return StreamingResponse(chunks, media_type="text/plain; charset=utf-8")
