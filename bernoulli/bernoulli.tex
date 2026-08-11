@@ -21,10 +21,14 @@ four ways: the theoretical (closed-form) maximum-likelihood solution;
 gradient descent on the negative log-likelihood with a gradient derived by
 hand; stochastic gradient descent, which replaces that gradient with a
 one-sample unbiased estimate; and the same SGD with the gradient computed
-by PyTorch's autograd. The companion script \texttt{mle.py} runs all four
-and verifies, by driving the two SGD variants through the identical sample
-schedule, that autograd reproduces the hand-derived gradient to
-floating-point precision.
+by PyTorch's autograd. Three companion scripts share one dataset
+(\texttt{common.py}): \texttt{mle\_theoretical.py} checks the closed form
+against a brute-force minimization; \texttt{mle\_practical\_pure.py} runs
+GD and SGD with hand-derived gradients and \emph{animates} the estimator
+descending the NLL landscape; \texttt{mle\_practical\_pytorch.py} verifies,
+by driving the two SGD variants through the identical sample schedule,
+that autograd reproduces the hand-derived gradient to floating-point
+precision.
 \end{abstract}
 
 \section{Setup: from the likelihood to the NLL, step by step}
@@ -226,11 +230,15 @@ $\max_k |\sigmoid(t_k^{\text{hand}}) - \sigmoid(t_k^{\text{autograd}})| <
 With $p = 0.3$ and $n = 5000$ (seed 7): the closed form gives
 $\hat{p} = m/n \approx 0.2978$; GD converges to it deterministically (the
 gap shrinks geometrically); SGD, Polyak-averaged over the last pass, lands
-within a few $10^{-3}$; and the two SGD trajectories coincide to
-$10^{-10}$. The figure produced by \texttt{mle.py} shows, left to right:
-the strictly convex NLL landscape; GD's smooth convergence to $m/n$; and
-SGD's noise ball around it, with the autograd trajectory overlaid and
-indistinguishable.
+within a few $10^{-3}$; and the two SGD trajectories coincide exactly
+(measured maximum gap $0.0$ over all $15{,}001$ iterates).
+\texttt{mle\_theoretical.py} draws the concave log-likelihood and convex
+NLL landscapes with the optimum marked; \texttt{mle\_practical\_pure.py}
+plays the animation --- GD's bead gliding down the NLL while SGD's bead
+jitters into its noise ball, with the same progress unrolled as an
+estimate-versus-time curve alongside; \texttt{mle\_practical\_pytorch.py}
+overlays the hand and autograd trajectories (indistinguishable) next to
+their per-step gap on a log scale.
 
 Four routes, one destination: the likelihood surface --- not the
 optimizer --- decides where estimation lands.
