@@ -1,0 +1,208 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\xbar}{\bar{x}}
+\newcommand{\phat}{\hat{p}}
+
+\title{Bernoulli Maximum-Likelihood Estimation, Part I:\\
+The Theoretical Solution and the Estimator's Report Card}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Pure statistics --- no losses, no descent. From i.i.d.\ samples of a
+Bernoulli distribution we derive the maximum-likelihood estimator in
+closed form, then judge it the way a statistician judges any estimator:
+bias, variance, efficiency against the Cram\'er--Rao bound, mean squared
+error, consistency, asymptotic normality (hence confidence intervals),
+and sufficiency. The companion script \texttt{mle\_theoretical.py}
+verifies the closed form against a brute-force search and every
+quantitative property by Monte Carlo over thousands of replicated
+experiments. The translation of this problem into a machine-learning
+loss, and its solution by gradient methods, is Part~II
+(\texttt{mle\_practical.tex}).
+\end{abstract}
+
+\section{From the likelihood to the estimator}
+
+Let $x_1,\dots,x_n \overset{\text{iid}}{\sim} \mathrm{Bernoulli}(p)$ with
+$x_i \in \{0,1\}$ and unknown $p \in (0,1)$. The question of maximum
+likelihood: which $p$ makes the observed sample most probable?
+
+\paragraph{Step 1: the likelihood is a product of two kinds of factors.}
+By independence, the probability of observing exactly this sample is
+\begin{equation}
+  L(p) \;=\; \prod_{i=1}^{n} \Pr(x_i)
+       \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i}.
+\end{equation}
+Each factor is just a case split written as one expression: it equals $p$
+when $x_i = 1$ and $1-p$ when $x_i = 0$. So if the sample contains
+$m = \sum_i x_i$ ones and $n - m$ zeros, collecting the factors gives
+\begin{equation}
+  L(p) \;=\; p^{\,m}\,(1-p)^{\,n-m}.
+  \label{eq:likelihood}
+\end{equation}
+Already here the data enters only through the count $m$: how the ones and
+zeros are ordered is irrelevant. (This observation becomes
+\emph{sufficiency} in Section~\ref{sec:reportcard}.)
+
+\paragraph{Step 2: the logarithm turns the product into a sum.}
+$\log$ is strictly increasing, so it preserves the location of a maximum:
+$\arg\max_p L(p) = \arg\max_p \log L(p)$. Applying it to
+\eqref{eq:likelihood},
+\begin{equation}
+  \ell(p) \;=\; \log L(p) \;=\; m\log p + (n-m)\log(1-p).
+  \label{eq:loglik}
+\end{equation}
+This is the whole reason for working in logs: powers become products,
+products become sums, and sums are easy to differentiate (and do not
+underflow numerically the way a product of $5000$ numbers in $(0,1)$
+would).
+
+\paragraph{The closed form.}
+
+\begin{proposition}
+Assume $0 < m < n$. Then $\phat_{\mathrm{MLE}} = m/n = \xbar$, and it is
+the unique maximizer of $\ell$ on $(0,1)$.
+\end{proposition}
+
+\begin{proof}
+Differentiate \eqref{eq:loglik} term by term:
+\begin{equation*}
+  \ell'(p) \;=\; \frac{m}{p} - \frac{n-m}{1-p}.
+\end{equation*}
+Set it to zero and clear denominators:
+\begin{equation*}
+  \frac{m}{p} = \frac{n-m}{1-p}
+  \;\;\Longrightarrow\;\;
+  m(1-p) = (n-m)\,p
+  \;\;\Longrightarrow\;\;
+  m - mp = np - mp
+  \;\;\Longrightarrow\;\;
+  m = np,
+\end{equation*}
+hence
+\begin{equation}
+  \boxed{\;\phat_{\mathrm{MLE}} \;=\; \frac{m}{n} \;=\; \xbar\;}
+  \label{eq:phat}
+\end{equation}
+--- the fraction of ones in the sample. Uniqueness:
+$\ell''(p) = -m/p^{2} - (n-m)/(1-p)^{2} < 0$, so $\ell$ is strictly concave
+on $(0,1)$ and the stationary point is the global maximum.
+\end{proof}
+
+\begin{remark}[Edge cases]
+If $m = 0$ or $m = n$, every factor of the likelihood pulls in the same
+direction: $L$ is monotone on $(0,1)$ and its supremum sits at the
+boundary, which is again $m/n$ --- the formula survives.
+\end{remark}
+
+\section{The estimator's report card}
+\label{sec:reportcard}
+
+An estimator is a \emph{random variable}: a new sample produces a new
+$\phat$. So $\phat$ has a distribution of its own, and we judge it by
+that distribution's shape. Throughout, use $m \sim \mathrm{Binomial}(n,p)$,
+so $\mathbb{E}[m] = np$ and $\mathrm{Var}(m) = np(1-p)$.
+
+\paragraph{Bias.} $\mathbb{E}[\phat] = \mathbb{E}[m]/n = p$: the
+estimator is \emph{unbiased} --- over repeated samples it is centered on
+the truth exactly, at every $n$.
+
+\paragraph{Variance and standard error.}
+\begin{equation}
+  \mathrm{Var}(\phat) \;=\; \frac{\mathrm{Var}(m)}{n^{2}}
+  \;=\; \frac{p(1-p)}{n},
+  \qquad
+  \mathrm{SE} \;=\; \sqrt{\frac{p(1-p)}{n}},
+  \label{eq:var}
+\end{equation}
+estimated in practice by plugging $\phat$ in for $p$. The $1/n$ decay is
+the rate at which data buys precision.
+
+\paragraph{Efficiency: the Cram\'er--Rao bound is attained.}
+The Fisher information of a single Bernoulli observation is
+\begin{equation*}
+  I(p) \;=\; \mathbb{E}\!\left[-\frac{d^{2}}{dp^{2}}
+  \log f(X;p)\right]
+  \;=\; \mathbb{E}\!\left[\frac{X}{p^{2}} + \frac{1-X}{(1-p)^{2}}\right]
+  \;=\; \frac{1}{p} + \frac{1}{1-p}
+  \;=\; \frac{1}{p(1-p)},
+\end{equation*}
+and the Cram\'er--Rao inequality states that \emph{every} unbiased
+estimator $T$ of $p$ obeys $\mathrm{Var}(T) \ge 1/\bigl(n I(p)\bigr)$
+(derivation: \texttt{Theory/statistics}). Here
+\begin{equation}
+  \frac{1}{n\,I(p)} \;=\; \frac{p(1-p)}{n} \;=\; \mathrm{Var}(\phat):
+  \label{eq:crlb}
+\end{equation}
+the bound holds with \emph{equality}. The MLE is \emph{efficient} ---
+provably unimprovable among unbiased estimators, at every finite $n$.
+
+\paragraph{Mean squared error.} The general decomposition
+$\mathrm{MSE} = \mathrm{Var} + \mathrm{Bias}^{2}$ collapses to
+$\mathrm{MSE}(\phat) = p(1-p)/n$: for unbiased estimators, accuracy is
+purely a variance story.
+
+\paragraph{Consistency.} Unbiasedness plus vanishing variance forces
+$\phat \to p$ in probability (Chebyshev). Since $\phat = \xbar$, this
+\emph{is} the law of large numbers, specialized to coin flips.
+
+\paragraph{Asymptotic normality, and what it buys.}
+By the central limit theorem,
+\begin{equation}
+  \sqrt{n}\,(\phat - p) \;\xrightarrow{\;d\;}\;
+  \mathcal{N}\bigl(0,\; p(1-p)\bigr),
+  \label{eq:clt}
+\end{equation}
+so for large $n$ the sampling distribution of $\phat$ is approximately
+$\mathcal{N}(p,\, p(1-p)/n)$. This is what buys \emph{confidence
+intervals}:
+\begin{equation}
+  \phat \;\pm\; 1.96\,\sqrt{\frac{\phat(1-\phat)}{n}}
+  \label{eq:ci}
+\end{equation}
+covers the true $p$ in about $95\%$ of repeated experiments. (The
+asymptotic variance $1/I(p)$ appearing here is no accident --- it is the
+general asymptotic behavior of MLEs.)
+
+\paragraph{Sufficiency.} The likelihood \eqref{eq:likelihood} depends on
+the data only through $m$ --- the factorization criterion --- so $m$ is a
+\emph{sufficient statistic}: compressing $n$ observations into one count
+loses nothing about $p$.
+
+\begin{remark}[Invariance, used in Part~II]
+The MLE of any function $g(p)$ is $g(\phat)$. This is why Part~II may
+reparameterize the problem through a sigmoid and still recover the same
+estimator.
+\end{remark}
+
+\section{Experiment}
+
+With $p = 0.3$ and $n = 5000$ (seed 7): $m = 1489$, so
+$\phat = 0.297800$, agreeing with a brute-force maximization of
+\eqref{eq:loglik} over a $10^{5}$-point grid. The report card, verified
+by Monte Carlo over $R = 5000$ replicated experiments: empirical mean of
+$\phat$ is $0.299910$ against $p = 0.3$ (unbiasedness); empirical
+variance $4.244\times10^{-5}$ against
+$p(1-p)/n = 4.200\times10^{-5}$, which equals the Cram\'er--Rao bound
+(efficiency); the $95\%$ interval \eqref{eq:ci} is $[0.2851, 0.3105]$
+and contains the truth. The figure shows, left to right: the true and
+fitted probability mass functions side by side; the log-likelihood
+\eqref{eq:loglik} with its maximum at \eqref{eq:phat}; and the sampling
+distribution of $\phat$ --- the histogram of the $5000$ replicated
+estimates --- with the CLT normal \eqref{eq:clt} drawn over it,
+indistinguishable.
+
+One sentence to keep: the estimator is a random variable, and everything
+we proved --- unbiased, efficient, normal --- is a statement about
+\emph{its} distribution, not about any single number.
+
+\end{document}

@@ -22,11 +22,15 @@ Each step is cheap but noisy; with a constant step size the iterate
 reaches a *noise ball* around the optimum and hovers, so we report the
 Polyak–Ruppert average of the last epoch, which shrinks the noise.
 
-The animation (the point of this file): watch the estimator descend.
-Left panel — the NLL landscape with GD (orange) and SGD (green) beads
-sliding down toward the closed-form minimum. Right panel — the same
-progress as a loss/estimate curve growing over training time. GD's bead
-glides; SGD's bead jitters into the noise ball. Run me with F5.
+The animation (the point of this file): watch the estimator descend,
+in three synchronized views. Left — the NLL landscape with GD (orange)
+and SGD (green) beads sliding down toward the closed-form minimum: GD
+glides, SGD jitters into the noise ball. Middle — the same progress
+unrolled in time: estimate-vs-time curves approaching the closed-form
+line. Right — the LOSS PROGRESSION: the suboptimality gap
+NLL(p_k) - NLL(p̂) on a log scale, where GD's geometric convergence is
+a straight plunge and SGD's noise floor is a plateau. Run me with F5.
+Derivations: mle_practical.tex.
 """
 
 import matplotlib.pyplot as plt
@@ -60,12 +64,15 @@ def sgd(x: np.ndarray, schedule: np.ndarray) -> np.ndarray:
 
 def animate(traj_gd: np.ndarray, traj_sgd: np.ndarray, xbar: float,
             p_closed: float, frames: int = 200) -> FuncAnimation:
-    """Two synchronized views of the descent: beads on the NLL landscape
-    (left) and the estimate-vs-training-progress curve growing (right)."""
+    """Three synchronized views of the same descent: beads on the NLL
+    landscape (left), the estimate-vs-time curve (middle), and the loss
+    progression — the suboptimality gap NLL(p_k) - NLL(p̂) on a log
+    scale (right), where GD's geometric convergence is a straight plunge
+    and SGD's noise floor is a plateau."""
     pg = np.linspace(0.02, 0.98, 400)
     nll = lambda p: nll_of_p(p, xbar)
 
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.4))
+    fig, (ax1, ax2, ax3) = plt.subplots(1, 3, figsize=(13.5, 4.2))
     fig.suptitle("Bernoulli MLE: the estimator descending the NLL",
                  fontsize=11)
 
@@ -82,7 +89,7 @@ def animate(traj_gd: np.ndarray, traj_sgd: np.ndarray, xbar: float,
     ax1.set(xlabel="p", ylabel="NLL(p)", title="on the landscape")
     ax1.legend(frameon=False, fontsize=8)
 
-    # -- right: estimate vs training progress -------------------------
+    # -- middle: estimate vs training progress ------------------------
     # GD takes GD_STEPS steps, SGD takes |schedule| steps; put both on a
     # common [0,1] "fraction of training" axis so they share a panel.
     xs_gd = np.linspace(0, 1, len(traj_gd))
@@ -90,14 +97,30 @@ def animate(traj_gd: np.ndarray, traj_sgd: np.ndarray, xbar: float,
     ax2.axhline(p_closed, color="#111", ls="--", lw=1,
                 label=f"closed form {p_closed:.4f}")
     line_gd, = ax2.plot([], [], color="#eb6834", lw=2, label="GD")
-    line_sgd, = ax2.plot([], [], color="#3d9b35", lw=1, alpha=.8,
-                         label="SGD")
+    line_sgd, = ax2.plot([], [], color="#3d9b35", lw=.6, alpha=.55,
+                         label="SGD (per-step iterate)")
     ax2.set(xlim=(0, 1), ylim=(0.25, 0.55),
             xlabel="fraction of training", ylabel="estimate of p",
             title="the same progress, unrolled in time")
     ax2.legend(frameon=False, fontsize=8, loc="upper right")
 
-    for ax in (ax1, ax2):
+    # -- right: the loss progression ----------------------------------
+    # suboptimality gap NLL(p_k) - NLL(p̂) >= 0; log scale separates
+    # GD's geometric plunge from SGD's noise plateau. (GD reaches exact
+    # machine zero — clip to float64's floor so the log axis can draw.)
+    gap_gd = np.maximum(nll(traj_gd) - nll(p_closed), 1e-17)
+    gap_sgd = np.maximum(nll(traj_sgd) - nll(p_closed), 1e-17)
+    ax3.set_yscale("log")
+    gapline_gd, = ax3.plot([], [], color="#eb6834", lw=2, label="GD")
+    gapline_sgd, = ax3.plot([], [], color="#3d9b35", lw=.6, alpha=.55,
+                            label="SGD")
+    ax3.set(xlim=(0, 1), ylim=(1e-17, 1),
+            xlabel="fraction of training",
+            ylabel=r"NLL$(p_k)$ − NLL$(\hat{p})$",
+            title="the loss progression (log scale)")
+    ax3.legend(frameon=False, fontsize=8, loc="upper right")
+
+    for ax in (ax1, ax2, ax3):
         ax.grid(alpha=.3)
         for side in ("top", "right"):
             ax.spines[side].set_visible(False)
@@ -114,7 +137,10 @@ def animate(traj_gd: np.ndarray, traj_sgd: np.ndarray, xbar: float,
         trail_sgd.set_data(traj_sgd[:j + 1], nll(traj_sgd[:j + 1]))
         line_gd.set_data(xs_gd[:i + 1], traj_gd[:i + 1])
         line_sgd.set_data(xs_sgd[:j + 1], traj_sgd[:j + 1])
-        return bead_gd, bead_sgd, trail_sgd, line_gd, line_sgd
+        gapline_gd.set_data(xs_gd[:i + 1], gap_gd[:i + 1])
+        gapline_sgd.set_data(xs_sgd[:j + 1], gap_sgd[:j + 1])
+        return (bead_gd, bead_sgd, trail_sgd, line_gd, line_sgd,
+                gapline_gd, gapline_sgd)
 
     return FuncAnimation(fig, update, frames=frames, interval=35,
                          blit=True, repeat=True)
