@@ -43,7 +43,7 @@ must numerically beat the last:
 | Rung | Model | val NLL (nats/char) | PPL |
 |---|---|---|---|
 | `llm/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
-| `llm/ngram-mlp/` | (next) embeddings + MLP — because counting dies at 65^k | | |
+| `llm/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
 | `llm/attention/` | (planned) scaled dot-product attention, derived and hand-checked | | |
 | `llm/gpt/` | (planned) full decoder, ~10M params on the 4070 | | |
 

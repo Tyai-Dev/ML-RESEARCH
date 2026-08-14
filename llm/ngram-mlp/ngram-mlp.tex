@@ -1,0 +1,156 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\smax}{\operatorname{softmax}}
+
+\title{The Neural $n$-gram (Bengio 2003):\\
+Why Counting Dies, and What Replaces It --- Rung 2 of the Ladder}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Rung 1 proved that with one character of context, counting is
+unbeatable. This rung measures what happens when you ask counting for
+more context --- it dies, quantitatively, by $k=4$ --- and replaces it
+with the first \emph{parametric} language model: characters embedded in
+$\mathbb{R}^d$, contexts mapped to logits by a one-hidden-layer
+network. Three scripts: \texttt{mlp\_theoretical.py} measures the
+curse of dimensionality (the U-turn: more context, worse model);
+\texttt{mlp\_practical\_pure.py} implements \textbf{backpropagation by
+hand} and proves it identical to autograd through every parameter
+tensor; \texttt{mlp\_practical\_pytorch.py} trains the model on the GPU
+and beats every count model, while animating the embedding space
+organizing itself.
+\end{abstract}
+
+\section{Counting with more context, and its death}
+
+The $k$-gram count model conditions on the previous $k$ characters:
+rung 1's Lagrange argument applies verbatim with one multinoulli row
+per \emph{context} $\mathbf{c} \in \{1..V\}^k$, giving the MLE
+$\hat p(b \mid \mathbf{c}) = n_{\mathbf{c}b}/n_{\mathbf{c}}$. The
+mathematics is fine; the \emph{statistics} is not, because the table
+has $V^k$ rows and the corpus has $\sim$$10^6$ positions. Measured on
+Tiny Shakespeare (Laplace $\alpha = 1$, unseen contexts scored uniform):
+
+\begin{center}
+\begin{tabular}{rrrrr}
+\toprule
+$k$ & possible contexts & seen & val ctx unseen & val NLL (PPL)\\
+\midrule
+1 & 65 & 65 & 0\% & 2.4819 \ (11.96)\\
+2 & 4{,}225 & 1{,}380 & 0.17\% & 2.0684 \ (7.91)\\
+3 & 274{,}625 & 11{,}228 & 1.39\% & \textbf{1.9526 \ (7.05)}\\
+4 & $1.8\times10^{7}$ & 48{,}539 & 4.20\% & 2.1737 \ (8.79)\\
+5 & $1.2\times10^{9}$ & 133{,}293 & 10.12\% & 2.5931 \ (13.37)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+The U-turn at $k=3$ is the curse of dimensionality made concrete: past
+it, \emph{more information makes the model worse}, for two reasons the
+script measures separately. Unseen contexts (10\% of validation at
+$k=5$) force uniform guesses worth $\log 65 = 4.17$ nats each; and even
+seen contexts have thin rows --- $n_{\mathbf{c}} \sim 1$ puts the
+estimator report card's $\mathrm{Var} = p(1-p)/n$ at its worst. By
+$k=5$ the model is \emph{worse than the bigram}.
+
+\section{The parametric fix: distributed representations}
+
+Stop giving every context its own row. Two moves (Bengio et al.\ 2003):
+\begin{equation}
+  \underbrace{E = C[X]}_{\text{embed}}, \quad
+  F = \operatorname{flat}(E), \quad
+  \underbrace{H = \tanh(F W_1 + b_1), \quad
+  Z = H W_2 + b_2}_{\text{map to logits}}, \quad
+  \mathcal{L} = \mathrm{CE}(Z, Y),
+  \label{eq:mlp}
+\end{equation}
+where $C \in \mathbb{R}^{V \times d}$ embeds each character, a context
+of $k$ characters becomes the concatenation of its embeddings
+($F \in \mathbb{R}^{kd}$), and a one-hidden-layer network produces the
+$V$ logits. Parameter count:
+\begin{equation}
+  \boxed{\;Vd + kd\,h + h + hV + V
+  \;=\; 67{,}673 \ \text{ at } k{=}8,\, d{=}24,\, h{=}256
+  \quad\text{vs}\quad V^k(V{-}1) \approx 2\times10^{16}\;}
+  \label{eq:params}
+\end{equation}
+--- \emph{linear} in $k$ instead of exponential. The payoff is
+statistical, not just spatial: similar contexts share parameters
+through $C$, so a context never seen in training still gets a sensible
+prediction, because its \emph{characters} were seen. This is the
+distributed representation --- the single idea that scales to GPT.
+
+\section{Backpropagation, by hand}
+
+To earn the right to use autograd on models too deep to check row by
+row, we differentiate \eqref{eq:mlp} completely by hand. With batch
+size $B$ and mean CE loss, the chain rule gives, layer by layer:
+\begin{equation}
+  \boxed{\;
+  \begin{aligned}
+  dZ &= \tfrac1B\bigl(\smax(Z) - \mathrm{onehot}(Y)\bigr)
+      &&\text{(the GLM residual, again)}\\
+  dW_2 &= H^{\!\top} dZ, \quad db_2 = \textstyle\sum_i dZ_i,
+      \quad dH = dZ\, W_2^{\!\top}\\
+  d\mathrm{pre} &= dH \odot (1 - H^2)
+      &&(\tanh' = 1 - \tanh^2)\\
+  dW_1 &= F^{\!\top} d\mathrm{pre}, \quad db_1 = \textstyle\sum_i
+      d\mathrm{pre}_i, \quad dF = d\mathrm{pre}\, W_1^{\!\top}\\
+  dC &= \operatorname{scatter\!-\!add}\bigl(X,\,
+      \operatorname{unflat}(dF)\bigr)
+      &&\text{(embedding rows are reused)}
+  \end{aligned}\;}
+  \label{eq:backprop}
+\end{equation}
+
+\paragraph{Proof by computation.} Identical initialization, identical
+batch schedule, identical SGD steps, \texttt{float64}: over $300$
+steps, the numpy implementation of \eqref{eq:backprop} and torch
+autograd agree to $1.8\times10^{-15}$ in the loss and to at most
+$2.2\times10^{-16}$ in \emph{every parameter tensor} ($C, W_1, b_1,
+W_2, b_2$). The chain rule, mechanized, is still our chain rule ---
+now one hidden layer deep. From here on, autograd does the bookkeeping.
+
+\section{Experiment: the rung is climbed}
+
+Adam (lr $10^{-3}$ for 8k steps, $10^{-4}$ for 4k), batch 256, on the
+RTX 4070: $12{,}000$ steps in $16.5$ seconds. Validation NLL:
+\begin{equation}
+  \boxed{\;\mathrm{NLL}_{\mathrm{val}} = 1.7583 \ \text{nats/char},
+  \qquad \mathrm{PPL} = 5.80\;}
+  \label{eq:result}
+\end{equation}
+beating the bigram ($11.96$) and counting's sweet spot ($7.05$) --- the
+first model on the ladder that generalizes to contexts it has never
+seen. Samples now contain English words and phrase rhythm
+(``\texttt{Upon thilal; be that in me before}\,\ldots'', ``\texttt{my
+lord}'', ``\texttt{To speak}'') where the bigram produced only
+letter-texture.
+
+The animation is this rung's insight made visible: projecting every
+training checkpoint of $C$ onto a fixed PCA plane, the 65 characters
+drift from a random cloud into structure --- vowels together,
+punctuation apart, capitals clustered --- \emph{with nobody telling the
+model what a vowel is}. The loss carved that geometry. Alongside: the
+train/val loss falling through both count-model baselines, and the
+samples sharpening.
+
+\begin{remark}[What still fails --- rung 3's opening]
+The context is a \emph{fixed} window, position-rigid: parameters for
+``3 characters back'' are separate from ``4 characters back,'' and
+$k$ cannot grow without retraining. What we want is a model that
+\emph{decides for itself} which previous characters matter ---
+attention.
+\end{remark}
+
+\end{document}
