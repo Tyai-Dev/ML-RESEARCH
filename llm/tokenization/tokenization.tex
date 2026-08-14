@@ -1,0 +1,119 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Byte-Pair Encoding:\\
+Designing the Alphabet, and Paying for It Honestly}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Every model on the ladder read text one character at a time --- a
+choice made by default, never examined. This note examines it. We
+implement BPE by hand (greedy pair-merging over a pre-tokenized
+corpus), verify it is a lossless bijection, watch it rediscover
+English units by pure counting, and then rerun rung 4's GPT unchanged
+on the new 515-token alphabet. The comparison is made in the only
+currency that survives a change of tokenizer --- NLL \emph{per
+character} --- and the result is a genuine experiment: the BPE model
+overfits on schedule (the token corpus is $2.3\times$ smaller),
+early stopping enters the toolkit, and the character alphabet wins at
+this scale. \texttt{bpe\_theoretical.py},
+\texttt{bpe\_practical\_pytorch.py}.
+\end{abstract}
+
+\section{The algorithm, and what it learns}
+
+A tokenizer is a bijection between text and sequences over a
+vocabulary we design. BPE builds the vocabulary greedily from data:
+start from the characters; repeatedly merge the most frequent adjacent
+pair into a new token. Each merge is the single vocabulary addition
+that maximizes the immediate drop in corpus length --- greedy
+compression. Following GPT-2, merges act only inside \emph{chunks} (a
+word with its preceding whitespace), which keeps tokens interpretable
+and the training loop cheap (unique chunks weighted by count, not the
+raw stream).
+
+Run on Tiny Shakespeare's training split ($450$ merges): the first
+merges are \texttt{'\ t'}, \texttt{'he'}, \texttt{'ou'},
+\texttt{'\ the'}, \texttt{'\textbackslash n\textbackslash n'} (the
+blank line between speeches!); by the end the vocabulary holds
+\texttt{'\ should'}, \texttt{'\ father'}, \texttt{'ICHARD'} (from the
+dramatis personae). English structure, discovered by counting ---
+rung 2's embedding lesson, one level down the stack.
+
+Verified: encoding round-trips the full $1{,}115{,}394$-character
+corpus \emph{exactly} (a tokenizer bug is silent data corruption; the
+first implementation failed this assert by dropping trailing
+whitespace, and the fix is documented in the code); compression is
+monotone in vocabulary size, reaching $2.33$ chars/token at $V = 515$.
+
+\section{The measuring-stick trap}
+
+Perplexity per \emph{token} is meaningless across tokenizers: a model
+over bigger tokens takes fewer, harder guesses. The exchange rate is
+the compression ratio, so all comparisons are made per character:
+\begin{equation}
+  \boxed{\;\mathrm{NLL/char}
+  \;=\; \frac{\sum_i \mathrm{NLL}(\mathrm{token}_i)}
+             {\sum_i |\mathrm{token}_i|}\;}
+  \label{eq:perchar}
+\end{equation}
+(total validation NLL divided by the characters the evaluated tokens
+cover). Hygiene: the merges are trained on the \emph{training split
+only} --- a tokenizer fitted on validation text would smuggle val
+statistics into the alphabet.
+
+\section{The experiment: same GPT, new alphabet}
+
+Rung 4's architecture, unchanged, with $V = 515$: a 128-token window
+now spans $\approx 298$ characters ($2.3\times$ the context), and
+\texttt{'\ the'} is one prediction instead of four. The opposing
+force: the training corpus shrinks from $10^6$ char-positions to
+$431{,}399$ token-positions.
+
+The opposing force wins the late game. Rung 4's 6000-step budget is
+$\sim$113 epochs over the token corpus; validation NLL/char bottoms
+at step $1250$ and then climbs a quarter nat while train loss keeps
+falling --- overfitting, arriving $2.3\times$ sooner exactly as the
+data shrinkage predicts. \textbf{Early stopping} (keep the best
+validation checkpoint, not the last) enters the toolkit here, at the
+first place its absence measurably costs:
+\begin{center}
+\begin{tabular}{lrr}
+\toprule
+model & val NLL/char & bits/char\\
+\midrule
+BPE-GPT, last step (overfit) & $1.7904$ & $2.583$\\
+BPE-GPT, early-stopped (step 1250) & $1.5165$ & $2.188$\\
+char-GPT (rung 4) & $\mathbf{1.4724}$ & $\mathbf{2.124}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}[The verdict, and its scope]
+At this scale \emph{characters win}: when data --- not context length
+--- is the bottleneck, a bigger alphabet just makes the dataset
+smaller. BPE's dominance in real LLMs lives at the opposite corner:
+corpora of $10^{12}$ tokens where data is plentiful, context is the
+scarce resource, and spelling is a waste of depth. The point of this
+note is not the winner but the method: \eqref{eq:perchar} turned
+``which tokenizer is better?'' into an answerable question.
+\end{remark}
+
+\begin{remark}[Tokenizer lock-in]
+The BPE model's checkpoint is only meaningful together with its merge
+list: the tokenizer is part of the model. This constraint returns in
+the finetuning note, where a new corpus must be expressed in the old
+model's alphabet.
+\end{remark}
+
+\end{document}
