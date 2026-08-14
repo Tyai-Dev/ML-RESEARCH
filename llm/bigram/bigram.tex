@@ -1,0 +1,217 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\smax}{\operatorname{softmax}}
+
+\title{The Bigram Language Model:\\
+Language Modeling Is Maximum Likelihood, Rung 1 of the Ladder}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The first language model in this repository, and the closing of a loop:
+a character bigram model is a \emph{conditional multinoulli MLE}, so
+everything proved in the classic-ML track --- counts as closed forms,
+cross-entropy as the loss, softmax gradients, SGD noise balls, autograd
+verification --- applies verbatim to text. Three companion scripts share
+one corpus (Tiny Shakespeare, char-level, \texttt{llm/common.py}):
+\texttt{bigram\_theoretical.py} builds the model by counting and proves
+no challenger beats it; \texttt{bigram\_practical\_pure.py} reaches the
+\emph{same} table by gradient descent and SGD with hand-derived
+gradients, animated; \texttt{bigram\_practical\_pytorch.py} verifies
+autograd against the hand gradient step-for-step, then trains
+full-batch on the GPU. This document also fixes the ladder's measuring
+stick: validation NLL per character, equivalently perplexity.
+\end{abstract}
+
+\section{The model: text as a Markov chain}
+
+Fix a character vocabulary of size $V$ (here $V = 65$). The bigram
+model assumes each character depends only on its predecessor:
+\begin{equation}
+  P(c_1, \dots, c_T)
+  \;=\; P(c_1) \prod_{i=1}^{T-1} P(c_{i+1} \mid c_i).
+  \label{eq:markov}
+\end{equation}
+The parameters are a $V \times V$ table $p(b \mid a)$ --- one
+conditional multinoulli per current-character $a$. Let
+$n_{ab}$ count how often $a$ is followed by $b$ in the training text,
+$n_a = \sum_b n_{ab}$, and $n = \sum_a n_a$ (the number of transition
+pairs). Grouping identical factors of the likelihood --- the bernoulli
+move, one level up ---
+\begin{equation}
+  L(p) \;=\; \prod_{a}\prod_{b}\; p(b \mid a)^{\,n_{ab}},
+  \qquad
+  \ell(p) \;=\; \sum_{a}\sum_{b} n_{ab}\,\log p(b \mid a).
+  \label{eq:loglik}
+\end{equation}
+No term of $\ell$ couples two rows: the problem separates into $V$
+independent multinoulli MLE problems.
+
+\section{The theoretical solution: counting}
+
+\begin{proposition}
+For every row $a$ with $n_a > 0$, the maximizer of \eqref{eq:loglik}
+subject to $\sum_b p(b \mid a) = 1$ is
+\begin{equation}
+  \boxed{\;\hat{p}(b \mid a) \;=\; \frac{n_{ab}}{n_a}\;}
+  \label{eq:counts}
+\end{equation}
+--- count and normalize; $m/n$, one level up.
+\end{proposition}
+
+\begin{proof}
+Row $a$'s Lagrangian is
+$\sum_b n_{ab} \log p(b\mid a) - \lambda\bigl(\sum_b p(b \mid a)-1\bigr)$.
+Stationarity gives $n_{ab}/p(b \mid a) = \lambda$, so
+$p(b \mid a) = n_{ab}/\lambda$; the constraint forces
+$\lambda = \sum_b n_{ab} = n_a$. The row objective is strictly concave
+where it matters ($-n_{ab}/p^2 < 0$), so the point is the unique
+maximum.
+\end{proof}
+
+\begin{remark}[Gibbs: optimality, information-theoretically]
+For any challenger row distribution $q$, the excess NLL is exactly a
+KL divergence:
+\begin{equation}
+  \mathrm{NLL}_a(q) - \mathrm{NLL}_a(\hat{p})
+  \;=\; n_a\,\mathrm{KL}\bigl(\hat{p}_a \,\|\, q\bigr) \;\ge\; 0,
+  \label{eq:gibbs}
+\end{equation}
+with equality iff $q = \hat{p}_a$ (Theory/information-theory). The
+theoretical script verifies this against $500$ random challengers.
+\end{remark}
+
+\begin{remark}[Sufficiency]
+The likelihood \eqref{eq:loglik} touches the data only through the
+count matrix $(n_{ab})$: those $V^2$ numbers are a sufficient statistic
+for the $\sim$1M-character corpus. Section~\ref{sec:autograd} will
+exploit this computationally.
+\end{remark}
+
+\section{The measuring stick: perplexity}
+
+Every model on the ladder is judged by its average NLL per character
+(in nats) on the \emph{same} held-out slice, or equivalently its
+exponential:
+\begin{equation}
+  \boxed{\;\mathrm{PPL} \;=\; \exp\!\Bigl(-\tfrac1T
+  \textstyle\sum_i \log p(c_{i+1}\mid c_i)\Bigr)\;}
+  \label{eq:ppl}
+\end{equation}
+--- ``the effective number of choices per character.'' A uniform
+guesser scores $\exp(\log V) = 65$; the bigram count model scores
+$11.61$ on train.
+
+\begin{remark}[The zero-count catastrophe --- why the ladder continues]
+$187$ of the $111{,}539$ validation transitions never occur in
+training; the pure MLE assigns them $\hat p = 0$ and the validation NLL
+is \emph{infinite}. Laplace smoothing
+$(n_{ab}+\alpha)/(n_a+\alpha V)$ with $\alpha = 1$ patches this
+($\mathrm{NLL}_{\mathrm{val}} = 2.4819$, $\mathrm{PPL} = 11.96$), but
+the lesson stands: \textbf{counting cannot generalize to unseen
+contexts}, and with context length $k$ the table needs $V^k$ rows.
+Rung~2 (embeddings + MLP) exists because of this paragraph.
+\end{remark}
+
+\section{The practical solution: descend the same objective}
+
+The ML translation: the average training NLL, written with counts and
+row weights $w_a = n_a/n$, is a count-weighted cross-entropy,
+\begin{equation}
+  \mathcal{L}
+  \;=\; -\frac1n \sum_{a,b} n_{ab} \log p(b \mid a)
+  \;=\; \sum_a w_a\, \mathrm{CE}\bigl(\hat{p}_a,\, p_a\bigr).
+  \label{eq:celoss}
+\end{equation}
+Parameters: a $V \times V$ table of \emph{logits} $W$, with
+$p_a = \smax(W_a)$ --- the same coordinate-change move as bernoulli's
+sigmoid, one level up: softmax maps each unconstrained row onto the
+simplex, so the constrained problem becomes free optimization. The
+gradient (derived in softmax-regression, reused here): for row $a$,
+\begin{equation}
+  \boxed{\;\frac{\partial \mathcal{L}}{\partial W_a}
+  \;=\; w_a\bigl(\smax(W_a) - \hat{p}_a\bigr),
+  \qquad
+  g_{(a,b)}(W) \;=\; \smax(W_a) - e_b \;\text{ on row } a\;}
+  \label{eq:grad}
+\end{equation}
+(full and per-sample forms; $e_b$ the one-hot) --- prediction minus
+target, the GLM residual signature yet again.
+
+\paragraph{Route GD.} The loss separates across rows, so we descend
+each row with its own full gradient $\smax(W_a) - \hat p_a$: $V$
+independent convex problems solved simultaneously, whose unique fixed
+point is $\smax(W_a) = \hat{p}_a$. \emph{Gradient descent converges to
+the count table}: measured, $\max_{ab}|\smax(W)-\hat p| =
+2.9\times10^{-4}$ after $3000$ steps ($\eta = 2$). Two routes, one
+destination --- now on language.
+
+\paragraph{Route SGD.} Visit transition pairs one at a time and apply
+the per-sample gradient of \eqref{eq:grad} --- unbiased, cheap, noisy,
+and it never builds the count table at all. Constant step size
+($\eta = 0.5$, one epoch $= 10^6$ steps) leaves the last iterate in a
+noise ball at NLL $2.5665$; Polyak--Ruppert averaging over the second
+half of training collapses it to $2.4551$, three thousandths of a nat
+above the floor $2.4519$. Bernoulli's noise-ball lesson, verbatim, at
+$65 \times 65$ scale.
+
+\section{Autograd, and sufficiency as a computational trick}
+\label{sec:autograd}
+
+\texttt{F.cross\_entropy}$(W_a, b)$ is exactly the per-sample NLL
+through the softmax coordinate change, so autograd must produce
+\eqref{eq:grad}. \textbf{Proof by computation:} driving torch's SGD
+through the identical pair schedule, step size, and start $W = 0$ (in
+\texttt{float64}) as the hand-written SGD, and recording the probe
+$P(\texttt{h} \mid \texttt{t})$ at every step, the two trajectories
+agree to $4.4\times10^{-16}$ --- one floating-point ulp --- over
+$20{,}000$ steps.
+
+Sufficiency then pays a computational dividend: by \eqref{eq:celoss}
+the \emph{full-batch} loss over $10^6$ pairs is computable from the
+$65\times65$ count matrix alone, so ``full-batch training'' is a dense
+$V \times V$ operation. Adam on the RTX 4070 minimizes it in $2.8$
+seconds and lands $2.2\times10^{-4}$ from the count table --- the third
+implementation to arrive at the same destination.
+
+\section{Experiment summary}
+
+Tiny Shakespeare, char-level, $V = 65$; train = first 90\%
+($1{,}003{,}853$ transitions), val = last 10\%, seed 7.
+\begin{center}
+\begin{tabular}{llll}
+route & train NLL & note \\
+\hline
+uniform baseline & $\log 65 = 4.174$ & PPL 65 \\
+count MLE \eqref{eq:counts} & $2.4519$ & the floor; PPL $11.61$ \\
+GD, $3000$ steps & $2.4519$ & $\max$ prob.\ error $2.9\times10^{-4}$ \\
+SGD, last iterate & $2.5665$ & the noise ball \\
+SGD, Polyak & $2.4551$ & averaging cancels the noise \\
+full-batch Adam (GPU) & $2.4519$ & from counts alone, $2.8$s \\
+\hline
+val (Laplace $\alpha{=}1$) & $2.4819$ & \textbf{PPL 11.96 — rung-1
+  number to beat} \\
+\end{tabular}
+\end{center}
+
+The animations: the pure script plays GD learning the language ---
+the error heatmap $|\smax(W_k) - \hat p|$ fading to black, the NLL
+falling onto the count-MLE floor, and the model's text samples
+sharpening from uniform noise toward Shakespeare-shaped babble, in
+sync. The pytorch script draws the hand and autograd probe trajectories
+simultaneously --- they never separate --- beside their per-step gap
+pinned at $10^{-16}$.
+
+One sentence to keep: \emph{a language model is a conditional
+distribution estimated by maximum likelihood; the bigram just makes
+that fact small enough to prove.}
+
+\end{document}

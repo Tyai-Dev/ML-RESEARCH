@@ -32,6 +32,21 @@ equation.
 | `passive-aggressive/` | Online learning as per-step optimization: min ‖w−w_t‖² s.t. hinge = 0, closed form via KKT (verified vs brute force); PA-I/PA-II noise robustness raced; multiclass PA |
 | `svm/` | Margin maximization: hard margin from geometry, KKT ⇒ support vectors (dropping 1324 non-SVs moves w by 0.0000; dropping 176 SVs by 0.25), soft margin = hinge + L2, Pegasos, logistic comparison, kernel remark |
 
+## LLM track
+
+Building an LLM by hand in raw PyTorch (design:
+`docs/plans/2026-08-14-llm-track-design.md`). One corpus (Tiny
+Shakespeare, char-level), one measuring stick (validation NLL /
+perplexity on the same held-out slice), and a ladder where each rung
+must numerically beat the last:
+
+| Rung | Model | val NLL (nats/char) | PPL |
+|---|---|---|---|
+| `llm/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
+| `llm/ngram-mlp/` | (next) embeddings + MLP — because counting dies at 65^k | | |
+| `llm/attention/` | (planned) scaled dot-product attention, derived and hand-checked | | |
+| `llm/gpt/` | (planned) full decoder, ~10M params on the 4070 | | |
+
 ## Theory (reference pages)
 
 | Folder | Contents |
