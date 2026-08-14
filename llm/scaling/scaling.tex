@@ -1,0 +1,117 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{remark}{Remark}
+
+\title{Scaling at Desk Size:\\
+Which Resource Is the Bottleneck, Measured}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Rung 4 chose 4 layers and $d = 256$ by taste. This note replaces
+taste with two sweeps under a fixed budget (3000 steps of the rung-4
+recipe, same seed, same validation slice): model size from $0.06$M to
+$7.5$M parameters at full data, and data from $10\%$ to $100\%$ of
+the corpus at fixed model size. The two curves answer the resource
+question unambiguously: parameter gains shrink to nothing while the
+train--val gap widens, and every data doubling keeps paying --- at
+$10^6$ characters, the next nat lives in more text, not more model.
+The Chinchilla lesson, reproduced on one desk in fifteen minutes.
+\texttt{scaling\_experiments.py} (results also in
+\texttt{scaling\_results.json}).
+\end{abstract}
+
+\section{The two sweeps}
+
+\begin{center}
+\begin{tabular}{lrrrr}
+\toprule
+\multicolumn{5}{c}{\textbf{Param sweep} (full data, 3000 steps)}\\
+model & params & train NLL & val NLL & gap\\
+\midrule
+1 layer, $d{=}64$ & $0.06$M & $2.081$ & $2.147$ & $0.066$\\
+2 layers, $d{=}128$ & $0.42$M & $1.616$ & $1.780$ & $0.164$\\
+3 layers, $d{=}192$ & $1.37$M & $1.360$ & $1.557$ & $0.197$\\
+4 layers, $d{=}256$ & $3.21$M & $1.227$ & $1.475$ & $0.248$\\
+6 layers, $d{=}320$ & $7.46$M & $1.126$ & $1.459$ & $0.332$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{center}
+\begin{tabular}{lrrr}
+\toprule
+\multicolumn{4}{c}{\textbf{Data sweep} (4L/$d$256, 3000 steps)}\\
+train data & train NLL & val NLL & \\
+\midrule
+$10\%$ ($\sim$100k chars) & $0.134$ & $3.823$ &
+  \emph{memorized; worse than a bigram}\\
+$25\%$ & $0.778$ & $2.272$ & \\
+$50\%$ & $1.109$ & $1.863$ & \\
+$100\%$ & $1.227$ & $\mathbf{1.475}$ & \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Reading the curves}
+
+\paragraph{Params stall.} Each model-size step multiplies parameters
+by $\sim$2--7$\times$; the validation gains are $0.37$, $0.22$,
+$0.08$, and finally $0.017$ nats --- the last $4.3$M parameters
+bought almost nothing. Meanwhile the train--val gap grows
+monotonically, $0.066 \to 0.332$: the big models have plenty of
+capacity and use it to fit noise. They are not starved of parameters;
+they are starved of data.
+
+\paragraph{Data keeps paying.} With the model fixed, every data
+increase improves validation, and the steps are enormous
+($3.82 \to 2.27 \to 1.86 \to 1.48$). The $10\%$ row is the
+experiment's best teacher: $3.2$M parameters against $10^5$
+characters reaches train NLL $0.134$ --- essentially a lossless
+memory of the training text --- while validation lands at $3.82$,
+\emph{worse than rung 1's bigram} ($2.48$). A model that can quote
+its training set perfectly and cannot predict fresh text is the
+overfitting story of Theory/learning-theory, staged at scale: the
+count-table pathology of rung 2's U-turn, now happening to a
+transformer.
+
+\paragraph{The verdict.}
+\begin{equation}
+  \boxed{\;\text{At } 10^6 \text{ chars: params } 2.147 \to 1.459
+  \text{ (stalling)}, \quad \text{data } 3.823 \to 1.475
+  \text{ (still paying)}\;}
+  \label{eq:verdict}
+\end{equation}
+The next improvement to the ladder's GPT is a bigger corpus, not a
+bigger model --- which is exactly the Chinchilla result (compute is
+best spent balancing model \emph{and} data, and most models of this
+era were data-starved), measured with nine desk-scale runs. All three
+shape claims --- diminishing param gains, growing overfit gap,
+monotone data gains --- are asserts in the script, not prose.
+
+\begin{remark}[What the fixed budget hides]
+Both sweeps hold the step budget constant, so ``more parameters''
+also means ``more compute per step'' but \emph{not} more optimization
+steps; a full scaling-law study would trade these against each other
+(loss vs compute at optimal allocation). At this corpus size the
+conclusion would not change: the data curve dominates every other
+axis. The honest scope of \eqref{eq:verdict} is: at fixed budget, on
+this corpus.
+\end{remark}
+
+\begin{remark}[Next]
+The measured bottleneck names the next experiment: a larger corpus
+(more Shakespeare-adjacent drama, or the full Gutenberg Shakespeare)
+with the same ladder discipline --- and, on the model side, the speed
+knobs (bf16 autocast, flash attention) that buy steps rather than
+parameters.
+\end{remark}
+
+\end{document}
