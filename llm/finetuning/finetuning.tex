@@ -1,0 +1,105 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{remark}{Remark}
+
+\title{Finetuning:\\
+What a Trained Model Is Worth on a New Distribution}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The ladder's GPT speaks Shakespeare. This note hands it Jane Austen
+(\emph{Pride and Prejudice}, sanitized into the checkpoint's 65-char
+alphabet) and separates, with three numbers on the same Austen
+validation slice, the three things people conflate as ``transfer
+learning'': what the old model already knows (zero-shot), what a short
+low-lr adaptation buys (finetuning), and what the pretrained
+initialization is worth against a random start at the identical budget
+(the finetune--scratch gap). All three claims are asserted, not
+narrated. \texttt{finetune\_practical\_pytorch.py}.
+\end{abstract}
+
+\section{Setup: tokenizer lock-in, now binding}
+
+The checkpoint is welded to its alphabet (the tokenization note's
+warning): Austen must be expressed in the Shakespeare model's 65
+characters. Sanitization maps curly quotes to straight, em-dashes to
+hyphens, and drops what remains outside the vocabulary ---
+$99.94\%$ of the $723{,}374$ characters survive. Split $90/10$;
+evaluation is NLL/char on the held-out last tenth.
+
+\section{The three numbers}
+
+\begin{center}
+\begin{tabular}{lrl}
+\toprule
+condition & Austen val NLL & meaning\\
+\midrule
+uniform & $4.174$ & knows nothing\\
+zero-shot (Shakespeare weights) & $1.7341$ & knows \emph{English}\\
+from scratch, 1000 steps & $1.2393$ & knows only Austen\\
+finetuned, 1000 steps @ lr $10^{-4}$ & $\mathbf{1.0978}$
+  & knows English \emph{and} Austen\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\paragraph{Zero-shot: knowledge transfers.} Untouched, the
+Shakespeare model scores $1.73$ on Austen --- $2.4$ nats better than
+uniform. Most of what a character LM knows (spelling, spacing,
+punctuation, function words) is the \emph{language}, not the author.
+That surviving knowledge is what finetuning steers.
+
+\paragraph{Finetuning: steer, don't blast.} 1000 steps at learning
+rate $10^{-4}$ --- $6\times$ below pretraining's peak, because a hot
+optimizer would blast away the transferred knowledge before the new
+gradient signal can redirect it (catastrophic forgetting's simplest
+face). The model crosses below its zero-shot score within 100 steps
+and settles at $1.0978$.
+
+\paragraph{The gap: what pretraining is worth.} A fresh random GPT
+given the \emph{identical} 1000-step budget (with the full rung-4
+recipe, which is optimal for a cold start) reaches only $1.2393$. The
+pretrained initialization is worth $0.1415$ nats/char at this budget
+--- the finetuned run starts from ``knows English, wrong author,''
+the scratch run from noise, and the budget is too short to relearn
+English from scratch.
+
+\begin{remark}[Austen is easier than Shakespeare]
+The finetuned Austen NLL ($1.10$) is far below the model's own
+Shakespeare score ($1.47$). That is a statement about the
+\emph{corpora}, not the model: 19th-century narrative prose is more
+predictable per character than dramatic verse with speaker turns,
+archaic inflection, and meter. NLL measures the text's conditional
+entropy as much as the model's skill --- the measuring stick from
+rung 1, cutting in a new direction.
+\end{remark}
+
+\begin{remark}[Sample]
+The finetuned model's samples switch register completely --- from
+blank-verse dialogue to drawing-room prose, complete with the novel's
+protagonist: ``\ldots\texttt{there she and the restraint opy of the
+conduct of these strongings were to be bringing Elizabeth's.}''
+Grammar is still 3.2M-params rough; the \emph{style} transferred in a
+thousand steps.
+\end{remark}
+
+The animation plays the race: finetune and scratch curves descending
+under the zero-shot line, while the finetuned samples morph from
+Shakespeare to Austen.
+
+\begin{remark}[Scope]
+This is full-parameter finetuning at toy scale. The industrial
+variants --- freezing layers, LoRA (rank-constrained updates),
+instruction tuning, RLHF --- are refinements of exactly this
+experiment's logic and belong to future notes.
+\end{remark}
+
+\end{document}
