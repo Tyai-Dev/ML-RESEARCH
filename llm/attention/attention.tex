@@ -1,0 +1,149 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\smax}{\operatorname{softmax}}
+
+\title{Attention, Derived and Earned:\\
+The Differentiable Dictionary --- Rung 3 of the Ladder}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Rung 2's MLP reads its context through a fixed, position-rigid window.
+This rung derives the mechanism that removes the rigidity ---
+scaled dot-product attention, a data-dependent, differentiable
+dictionary lookup --- and hand-verifies it before using it:
+\texttt{attention\_theoretical.py} computes the forward \emph{and}
+backward passes in raw numpy on a small example and matches torch
+autograd to $10^{-16}$ on every tensor, proves causality end to end,
+and checks the $\sqrt{d}$ scaling claim by Monte Carlo.
+\texttt{attention\_practical\_pytorch.py} then builds the smallest
+language model around one transformer block, beats rung 2 on the
+shared validation slice, and animates the attention map learning where
+to look on real text.
+\end{abstract}
+
+\section{The mechanism}
+
+For a sequence $X \in \mathbb{R}^{T \times d}$, three learned linear
+maps give each position three roles:
+\begin{equation}
+  Q = X W_q \ \ (\text{``what am I looking for?''}), \quad
+  K = X W_k \ \ (\text{``what do I contain?''}), \quad
+  V = X W_v \ \ (\text{``what do I offer?''}),
+  \label{eq:qkv}
+\end{equation}
+each in $\mathbb{R}^{T \times d_h}$. Scores, causal mask, and mixing:
+\begin{equation}
+  S = \frac{Q K^{\!\top}}{\sqrt{d_h}}, \qquad
+  S_{ij} \leftarrow -\infty \ \text{ for } j > i, \qquad
+  A = \smax_{\text{rows}}(S), \qquad
+  O = A\,V.
+  \label{eq:attn}
+\end{equation}
+Row $i$ of $A$ is a \emph{probability distribution over positions
+$\le i$}: position $i$ mixes the values of the positions it chooses to
+attend to. Two facts carry the whole design. First, $A$ is
+\textbf{not a parameter} --- it is recomputed from the data every
+forward pass, so ``which past positions matter'' is itself a learned,
+input-dependent computation (this is exactly what rung 2's fixed
+window could not do). Second, the mask makes the model causal:
+output $i$ depends only on inputs $\le i$, verified below by direct
+perturbation.
+
+\begin{remark}[Why $\sqrt{d_h}$]
+For $q, k$ with i.i.d.\ unit-variance entries,
+$\mathrm{Var}(q \cdot k) = d_h$; unscaled scores of size
+$\sqrt{d_h}$ saturate the softmax at initialization and kill its
+gradient. Dividing by $\sqrt{d_h}$ restores $O(1)$ scores. Measured
+($d_h = 64$, $2\times10^4$ samples): raw variance $65.3 \approx d_h$,
+scaled $1.02 \approx 1$.
+\end{remark}
+
+\section{The backward pass, by hand}
+
+With upstream gradient $dO$, the chain rule through \eqref{eq:attn}:
+\begin{equation}
+  \boxed{\;
+  \begin{aligned}
+  dV &= A^{\!\top} dO, \qquad dA = dO\, V^{\!\top}\\
+  dS &= A \odot \bigl(dA - \operatorname{rowsum}(dA \odot A)\bigr)
+     && \text{(softmax Jacobian, per row)}\\
+  dQ &= dS\, K / \sqrt{d_h}, \qquad dK = dS^{\!\top} Q / \sqrt{d_h}\\
+  dW_q &= X^{\!\top} dQ, \quad dW_k = X^{\!\top} dK, \quad
+     dW_v = X^{\!\top} dV\\
+  dX &= dQ\, W_q^{\!\top} + dK\, W_k^{\!\top} + dV\, W_v^{\!\top}
+  \end{aligned}\;}
+  \label{eq:backward}
+\end{equation}
+The masked entries need no special case: they have $A_{ij} = 0$, and
+the $A \odot (\cdot)$ factor zeroes their gradient automatically.
+
+\paragraph{Proof by computation.} On a $T{=}6$, $d{=}8$, $d_h{=}4$
+example in \texttt{float64}, the numpy implementation of
+\eqref{eq:attn}--\eqref{eq:backward} matches torch autograd on
+\emph{every} tensor: $O$ and $A$ to $6\times10^{-16}$, and $dX, dW_q,
+dW_k, dW_v$ to at most $8.9\times10^{-16}$. Causality is checked
+physically: adding $10$ to the last input row changes only the last
+output row. Attention is earned; from here it may be used batched and
+multi-headed.
+
+\section{One block: communicate, then compute}
+
+Multi-head attention runs $n_h$ copies of \eqref{eq:attn} on
+$d/n_h$-dimensional slices and concatenates --- different heads can
+track different things (recency, line starts, speaker turns). The
+transformer block wraps it with the two stabilizers:
+\begin{equation}
+  x \leftarrow x + \mathrm{MHA}(\mathrm{LN}(x)), \qquad
+  x \leftarrow x + \mathrm{MLP}(\mathrm{LN}(x)),
+  \label{eq:block}
+\end{equation}
+pre-norm residuals: each sublayer learns a \emph{correction} to the
+identity, gradients flow through the skip path, and LayerNorm keeps
+activations $O(1)$ (the $\sqrt{d_h}$ argument, applied everywhere).
+The rung's model is the minimal wrap: token + position embeddings, ONE
+block \eqref{eq:block}, a linear head; $T = 64$, $d = 128$, $4$ heads,
+$223{,}425$ parameters.
+
+\section{Experiment: the rung is climbed}
+
+AdamW, batch 64, step decay ($10^{-3}$ for 12k steps, $10^{-4}$ for
+4k): $16{,}000$ steps in $68$ seconds on the RTX 4070.
+\begin{equation}
+  \boxed{\;\mathrm{NLL}_{\mathrm{val}} = 1.6254 \ \text{nats/char},
+  \qquad \mathrm{PPL} = 5.08\;}
+  \label{eq:result}
+\end{equation}
+against rung 2's $1.7583$ (PPL $5.80$) on the same slice --- with
+$8\times$ the context of the MLP and no per-position parameters.
+(A first attempt with $d = 96$ and 8k constant-lr steps scored
+$1.8252$ and \emph{failed} the gate --- the fix was width + training
+time + the lr drop, a preview of rung 4's scaling discussion.)
+Samples now hold the play's macro-structure: capitalized speaker names
+with colons, dialogue turns, stage-direction rhythm.
+
+The animation shows the mechanism learning: on a fixed validation
+window, the head-averaged $A$ starts as a diffuse causal smear and
+develops structure as the loss falls --- a strong recency band,
+columns lighting up under spaces and newlines (word and line
+boundaries are what a character model needs most), heads
+specializing --- beside the loss crossing rung 2's line and the
+samples sharpening.
+
+\begin{remark}[What still fails --- rung 4's opening]
+One block is one round of communicate-then-compute: information hops
+a single attention step. Long-range grammar (an open quote closed 40
+characters later, a subject agreeing with a distant verb) wants
+\emph{iterated} mixing. Rung 4 stacks the block \eqref{eq:block} $N$
+deep --- and that is the entire remaining distance to GPT.
+\end{remark}
+
+\end{document}

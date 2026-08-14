@@ -44,7 +44,7 @@ must numerically beat the last:
 |---|---|---|---|
 | `llm/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
 | `llm/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
-| `llm/attention/` | (planned) scaled dot-product attention, derived and hand-checked | | |
+| `llm/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
 | `llm/gpt/` | (planned) full decoder, ~10M params on the 4070 | | |
 
 ## Theory (reference pages)
