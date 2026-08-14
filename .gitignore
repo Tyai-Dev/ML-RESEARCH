@@ -3,6 +3,9 @@ __pycache__/
 *.pyc
 .venv/
 
+# model checkpoints
+*.pt
+
 # LaTeX build artifacts
 *.aux
 *.log

@@ -1,0 +1,151 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\smax}{\operatorname{softmax}}
+
+\title{A GPT, Assembled from Verified Parts:\\
+Rung 4, the Top of the Ladder}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The final rung contains \emph{no new mathematics} --- that is its
+point. A GPT is the rung-3 block stacked $N$ deep over rung-2's
+embeddings, trained on rung-1's loss; every mechanism inside it was
+derived by hand and verified against autograd at $10^{-16}$ lower on
+the ladder. What this rung adds is engineering with receipts: the
+training knobs (AdamW, warmup+cosine, gradient clipping), each
+justified by measurement (\texttt{gpt\_ablations.py}) rather than
+folklore. The model --- 4 layers, 4 heads, $d = 256$, $T = 128$,
+$3.21$M parameters --- trains in $2.3$ minutes on the RTX 4070 to
+validation perplexity $\mathbf{4.36}$, beating every rung below it on
+the shared slice.
+\end{abstract}
+
+\section{The architecture: depth is iterated mixing}
+
+\begin{equation}
+  x^{(0)} = \mathrm{TokEmb}[c] + \mathrm{PosEmb}[0..T{-}1],
+  \qquad
+  x^{(\ell+1)} = \mathrm{Block}(x^{(\ell)}),
+  \qquad
+  Z = \mathrm{LN}(x^{(N)})\, W_{\mathrm{tok}}^{\!\top},
+  \label{eq:gpt}
+\end{equation}
+with $\mathrm{Block}$ exactly rung 3's
+$x \mapsto x + \mathrm{MHA}(\mathrm{LN}(x))$,
+$x \mapsto x + \mathrm{MLP}(\mathrm{LN}(x))$. One block is one hop of
+information between positions; $N$ blocks iterate the mixing, which is
+what long-range structure (a quote that closes, a subject agreeing
+with a distant verb) requires --- and the measured NLL drop from one
+block to four ($1.63 \to 1.47$) is the largest on the ladder.
+
+Assembly choices, with reasons: the head is \emph{tied} to the token
+embedding ($W_{\mathrm{tok}}^{\!\top}$ in \eqref{eq:gpt}) --- the maps
+char$\to$vector and vector$\to$char share structure, saving $Vd$
+parameters; residual-path projections are initialized with std
+$0.02/\sqrt{2N}$ so the residual stream's variance stays $O(1)$ after
+its $2N$ additions (the $\sqrt{d_h}$ argument, applied to depth);
+dropout ($0.1$) enters the ladder here because $3.2$M parameters
+against $10^6$ characters is the first genuinely overparameterized
+model --- and indeed training NLL reaches $1.08$ while validation
+plateaus at $1.47$: the generalization gap, visible at last.
+
+\section{The knobs, with receipts}
+
+The training loop is still the same $\sim$30 lines; three knobs are
+added, each with its mechanism stated and its effect measured.
+
+\paragraph{AdamW.} Adam with \emph{decoupled} weight decay,
+$\theta \leftarrow \theta - \eta\lambda\theta$ applied outside the
+moment machinery (Theory/optimizers), $\lambda = 0.1$ on matmul
+weights only --- biases, LayerNorm gains, and embeddings stay free.
+
+\paragraph{Warmup + cosine.} Adam's second-moment estimates are noise
+for the first steps; the schedule
+\begin{equation}
+  \eta(t) =
+  \begin{cases}
+    \eta_{\max}\, t/t_w, & t < t_w\\[2pt]
+    \eta_{\min} + (\eta_{\max}-\eta_{\min})\,
+    \tfrac12\bigl(1 + \cos(\pi u)\bigr), & u = \tfrac{t - t_w}{T - t_w}
+  \end{cases}
+  \label{eq:cosine}
+\end{equation}
+($t_w = 300$, $\eta_{\max} = 6\times10^{-4}$,
+$\eta_{\min} = 6\times10^{-5}$) protects the early steps and anneals
+the endgame, replacing rungs 2--3's crude step-drops.
+
+\paragraph{Gradient clipping.} Rescale the global gradient norm to
+$\le 1$: one outlier minibatch cannot throw the parameters.
+
+\paragraph{The ablation's verdict --- measurement over folklore.}
+Three recipes (no knobs / +schedule / full), same seed and data order,
+$2500$ steps each: final validation NLL $1.5119$ / $1.5058$ / $1.5115$
+--- within $0.006$ nats of each other. At this scale the knobs are
+\emph{insurance}, not magic: warmup guards an early blow-up this small
+stable model doesn't suffer; clipping caps outlier batches this clean
+corpus doesn't produce; decay fights an overfit that needs a longer
+run to matter. They earn their keep at scale; here they must merely do
+no harm, and that is what the assert checks. The repo's rule survives
+its first negative result: \emph{improvements are experiments, and a
+null result is a result}.
+
+\section{Experiment: the ladder, closed}
+
+$6000$ steps, batch $64$, $2.3$ minutes on the RTX 4070:
+\begin{equation}
+  \boxed{\;\mathrm{NLL}_{\mathrm{val}} = 1.4724 \ \text{nats/char},
+  \qquad \mathrm{PPL} = 4.36\;}
+  \label{eq:result}
+\end{equation}
+
+\begin{center}
+\begin{tabular}{llrr}
+\toprule
+rung & model & val NLL & PPL\\
+\midrule
+--- & uniform & $4.174$ & $65.00$\\
+1 & bigram counts (= GD = SGD = autograd) & $2.4819$ & $11.96$\\
+2 & neural $n$-gram, $k{=}8$ (Bengio) & $1.7583$ & $5.80$\\
+3 & one transformer block, $T{=}64$ & $1.6254$ & $5.08$\\
+4 & \textbf{GPT: 4 blocks, $T{=}128$, 3.21M} & $\mathbf{1.4724}$
+  & $\mathbf{4.36}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+Every rung beat the one below it on the same validation slice, each
+gate an assert. The samples close the story the bigram opened: from
+letter-texture (rung 1), to English words (rung 2), to speaker
+structure (rung 3), to near-grammatical blank verse with clause
+structure (rung 4): ``\texttt{Unless my friends be unknown with the
+cause; / I will follow the blows}\ldots''. The animation plays the
+finale: the loss descending through every previous rung's line, the
+perplexity ladder as a live bar chart, and the fixed-seed samples
+evolving from noise to verse.
+
+\begin{remark}[What the ladder teaches]
+The loss never changed. From rung 1's count table to rung 4's GPT,
+every model minimized the same average NLL
+$-\frac1T\sum\log p(c_{i+1}\mid \mathrm{context})$; the entire journey
+was about \emph{which family of conditional distributions} we let the
+optimizer search. Language modeling is maximum likelihood --- the rest
+is architecture.
+\end{remark}
+
+\begin{remark}[Next, in separate designs]
+BPE tokenization (characters are the floor, not the ceiling); scaling
+experiments (params vs data vs compute on the 4070); finetuning the
+checkpoint (\texttt{gpt\_checkpoint.pt}) on a new corpus.
+\end{remark}
+
+\end{document}
