@@ -20,6 +20,18 @@ schedule (trajectory identity assert). Because the model is
 well-specified, the fitted classifier approaches the multiclass BAYES
 floor  E[ 1 - max_k p_k(X) ].
 
+The animation (second window): SGD training the classifier, ONE SAMPLE
+PER ITERATION. The decision REGIONS are drawn as class-colored fields
+whose opacity is the model's confidence max_k p_k(x) — at W = 0 the
+plane is blank (every class ties at 1/3), and the regions materialize
+and sharpen as samples arrive; the yellow ring marks the single point
+whose gradient (softmax - onehot) ⊗ x produced the step. True region
+borders are dotted black. A live report card shows the full 3x3
+confusion matrix with per-class recall, accuracy, macro-F1 and NLL;
+below, the NLL gap (descent, then the noise ball, Polyak line under
+it) and the test error settling on the multiclass Bayes floor
+E[1 - max p] while the region borders keep wobbling.
+
 Note on identifiability: adding the same vector to every row of W leaves
 softmax unchanged, so W itself is only identified up to that shift — we
 therefore compare fitted PROBABILITIES to true probabilities, not W to W*.
@@ -178,4 +190,149 @@ for ax in (ax1, ax2, ax3):
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 fig.tight_layout()
+
+# ----------------------------------------------------------------------
+# Animation: SGD carving the decision regions, one sample per iteration
+# ----------------------------------------------------------------------
+from matplotlib.animation import FuncAnimation  # noqa: E402
+
+XR, YR = 4.6, 3.0
+agx = np.linspace(-XR, XR, 230)
+agy = np.linspace(-YR, YR, 150)
+AGX, AGY = np.meshgrid(agx, agy)
+AG = np.column_stack([np.ones(AGX.size), AGX.ravel(), AGY.ravel()])
+CLASS_RGB = np.array([[42, 120, 214],      # class 0 — blue
+                      [61, 155, 53],       # class 1 — green
+                      [235, 104, 52]]) / 255.0   # class 2 — orange
+
+
+def region_img(W_):
+    """Decision regions as an RGBA image: color = argmax class,
+    opacity = confidence max_k p_k, rescaled so a three-way tie (1/3,
+    the W = 0 state) is fully transparent. The classifier literally
+    fades in as it learns."""
+    P = softmax(AG @ W_.T)
+    rgb = CLASS_RGB[P.argmax(axis=1)]
+    alpha = np.clip((P.max(axis=1) - 1 / K) / (1 - 1 / K), 0, 1) * 0.5
+    return np.concatenate([rgb, alpha[:, None]],
+                          axis=1).reshape(AGX.shape + (4,))
+
+
+sgd_snaps = [np.zeros((K, D))] + traj_sgd
+N_SGD = len(traj_sgd)
+FRAME_STEPS = np.r_[0, np.unique(np.geomspace(1, N_SGD,
+                                              160).astype(int))]
+
+# per-frame diagnostics on a held-out subset: the K x K confusion matrix
+sub_t = slice(0, 20_000)
+Xt_s, yt_s = X_test[sub_t], y_test[sub_t]
+
+
+def confusion(W_):
+    pred = softmax(Xt_s @ W_.T).argmax(axis=1)
+    C = np.zeros((K, K), dtype=int)
+    np.add.at(C, (yt_s, pred), 1)
+    return C
+
+
+conf_snaps = [confusion(sgd_snaps[s]) for s in FRAME_STEPS]
+err_snaps = [1 - np.trace(C) / C.sum() for C in conf_snaps]
+nll_snaps = [nll(sgd_snaps[s]) for s in FRAME_STEPS]
+best_nll = gd_hist[-1]
+polyak_gap = max(nll(W_sgd) - best_nll, 1e-16)
+
+
+def report(k):
+    """The multiclass report card: confusion matrix, per-class recall,
+    accuracy, macro-F1 (Theory/evaluation for the definitions)."""
+    C = conf_snaps[k]
+    rec = np.diag(C) / np.maximum(C.sum(axis=1), 1)
+    prec = np.diag(C) / np.maximum(C.sum(axis=0), 1)
+    f1 = 2 * prec * rec / np.maximum(prec + rec, 1e-12)
+    head = "        " + "".join(f"  pred{j}" for j in range(K))
+    rows = "\n".join(
+        f"true {i}  " + "".join(f"{C[i, j]:7d}" for j in range(K))
+        + f"   rec {rec[i]:5.3f}" for i in range(K))
+    return (f"{head}\n{rows}\n\n"
+            f"accuracy {np.trace(C) / C.sum():5.3f}   "
+            f"macro-F1 {f1.mean():5.3f}   NLL {nll_snaps[k]:.4f}")
+
+
+figA = plt.figure(figsize=(11.5, 8.6))
+gsA = figA.add_gridspec(2, 2, height_ratios=[1.9, 1],
+                        hspace=.28, wspace=.24)
+axA = figA.add_subplot(gsA[0, :])
+axB = figA.add_subplot(gsA[1, 0])
+axC = figA.add_subplot(gsA[1, 1])
+figA.suptitle("SGD, live: one sample per iteration carves the "
+              "decision regions (K = 3)", fontsize=12)
+
+im = axA.imshow(region_img(sgd_snaps[0]), extent=(-XR, XR, -YR, YR),
+                origin="lower", zorder=0)
+axA.scatter(X[sub, 1], X[sub, 2], c=CLASS_RGB[y[sub]], s=8, alpha=.6,
+            zorder=1)
+regions_true = softmax(AG @ W_TRUE.T).argmax(axis=1).reshape(AGX.shape)
+axA.contour(AGX, AGY, regions_true, levels=[0.5, 1.5], colors="k",
+            linestyles=":", linewidths=1.3, zorder=2)
+ring, = axA.plot([], [], "o", mfc="none", mec="#f0b400", ms=14, mew=2.8,
+                 label="the sample that just pushed", zorder=4)
+titleA = axA.set_title("")
+axA.set(xlim=(-XR, XR), ylim=(-YR, YR), xlabel="x1", ylabel="x2")
+axA.set_aspect("equal")
+axA.legend(frameon=False, fontsize=8, loc="upper left")
+report_txt = axA.text(.99, .02, "", transform=axA.transAxes,
+                      family="monospace", fontsize=8, ha="right",
+                      va="bottom", zorder=5,
+                      bbox=dict(facecolor="white", alpha=.85,
+                                edgecolor="#999", boxstyle="round"))
+
+curve_nll, = axB.plot([], [], color="#1baf7a", lw=1.5,
+                      label="SGD iterate")
+axB.axhline(polyak_gap, color="#2a78d6", ls="--", lw=1.2,
+            label=f"Polyak average {polyak_gap:.1e}")
+axB.set_xscale("log")
+axB.set_yscale("log")
+axB.set(xlim=(1, N_SGD), ylim=(polyak_gap / 10, 2),
+        xlabel="SGD step (log)", ylabel="NLL − best (log)",
+        title="descent, then the noise ball; averaging beats it")
+axB.legend(frameon=False, fontsize=8)
+
+axC.axhline(bayes_error, color="#0b0b0b", ls="--", lw=1.2,
+            label=f"Bayes floor E[1 − max p] = {bayes_error:.4f}")
+curve_err, = axC.plot([], [], color="#2a78d6", lw=1.5,
+                      label="test error")
+axC.set_xscale("log")
+axC.set(xlim=(1, N_SGD), ylim=(bayes_error - .02, .70),
+        xlabel="SGD step (log)", ylabel="test error",
+        title="the wobble never reaches the error")
+axC.legend(frameon=False, fontsize=8)
+
+for ax in (axB, axC):
+    ax.grid(alpha=.3)
+    for side in ("top", "right"):
+        ax.spines[side].set_visible(False)
+# no tight_layout: the equal-aspect big panel manages its own margins
+
+FRAMES = len(FRAME_STEPS)
+gap_snaps = np.maximum(np.array(nll_snaps) - best_nll, 1e-16)
+
+
+def update(k):
+    s = FRAME_STEPS[k]
+    W_ = sgd_snaps[s]
+    im.set_data(region_img(W_))
+    if s >= 1:                                # the sample used at step s
+        i = schedule[s - 1]
+        ring.set_data([X[i, 1]], [X[i, 2]])
+    shown = FRAME_STEPS[1:k + 1]              # step 0 not on log axis
+    curve_nll.set_data(shown, gap_snaps[1:k + 1])
+    curve_err.set_data(shown, err_snaps[1:k + 1])
+    epoch = (s - 1) // N + 1 if s else 0
+    titleA.set_text(f"step {s:>6,d} (epoch {epoch})")
+    report_txt.set_text(report(k))
+    return im, ring, curve_nll, curve_err, titleA, report_txt
+
+
+ani = FuncAnimation(figA, update, frames=FRAMES, interval=80,
+                    blit=False, repeat=True)   # keep a ref!
 plt.show()
