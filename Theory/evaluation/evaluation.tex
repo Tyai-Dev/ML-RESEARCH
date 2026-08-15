@@ -1,0 +1,192 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Measuring Success:\\
+Confusion Matrices, Curves, and the Cost of a Threshold}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Training minimizes a loss; \emph{evaluation} answers a different
+question --- did the classifier do its job? --- and the answer depends
+on which job. This page organizes the metric zoo around three ideas:
+every metric is a function of the four confusion-matrix counts; the
+threshold is a free parameter, so honest evaluation sweeps it (ROC,
+precision--recall); and calibrated probabilities turn misclassification
+\emph{costs} into the optimal threshold in closed form. Every claim is
+verified by \texttt{evaluation\_demo.py} on held-out sets of $2$--$4
+\times 10^5$ points, and the animation makes the central fact visible:
+\emph{every point of the ROC and PR curves is a threshold}.
+\end{abstract}
+
+\section{The four counts}
+
+A binary classifier in this repository is a score $s(x)$ --- for the
+GLM family, a calibrated probability $\hat p(x)$ --- plus a threshold
+$\tau$; it predicts $+$ iff $s(x) > \tau$. Against the truth, four
+counts:
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+ & predicted $+$ & predicted $-$\\
+\midrule
+truly $+$ & TP & FN \ (misses)\\
+truly $-$ & FP \ (false alarms) & TN\\
+\bottomrule
+\end{tabular}
+\end{center}
+Everything below is arithmetic on these four numbers:
+\begin{equation}
+  \mathrm{acc} = \frac{TP+TN}{n}, \quad
+  \mathrm{prec} = \frac{TP}{TP+FP}, \quad
+  \mathrm{rec} = \mathrm{TPR} = \frac{TP}{TP+FN}, \quad
+  \mathrm{FPR} = \frac{FP}{FP+TN},
+  \label{eq:defs}
+\end{equation}
+plus specificity $= 1 - \mathrm{FPR}$ and the harmonic compromise
+\begin{equation}
+  F_1 = \frac{2\,\mathrm{prec}\cdot\mathrm{rec}}
+             {\mathrm{prec}+\mathrm{rec}},
+  \qquad
+  F_\beta = (1+\beta^2)\,
+  \frac{\mathrm{prec}\cdot\mathrm{rec}}
+       {\beta^2\,\mathrm{prec}+\mathrm{rec}}
+  \label{eq:f1}
+\end{equation}
+($\beta > 1$ weights recall; harmonic, so one bad component drags the
+mean down --- you cannot buy $F_1$ with precision alone). Each metric
+answers a \emph{different question}: accuracy ``how often right'';
+precision ``when it cries $+$, believe it?''; recall ``of the real
+$+$, how many found?''.
+
+\paragraph{Accuracy lies under imbalance.} Measured, base rate
+$2.67\%$: the classifier that \emph{never says positive} scores
+accuracy $0.9732$ with recall $0.000$; the fitted logistic scores
+$0.9762$ with recall $0.212$. Three thousandths of accuracy separate
+``useless'' from ``useful'' --- accuracy answers the wrong question
+whenever one class is rare and expensive to miss. This is why the rest
+of this page exists.
+
+\section{The threshold is a free parameter}
+
+The score is the model; $\tau$ is a \emph{decision}. Sweeping $\tau$
+from $1$ to $0$ trades misses for false alarms and traces two curves:
+\begin{itemize}
+  \item \textbf{ROC}: $\bigl(\mathrm{FPR}(\tau),
+    \mathrm{TPR}(\tau)\bigr)$ --- both coordinates are per-class rates.
+  \item \textbf{Precision--recall}:
+    $\bigl(\mathrm{rec}(\tau), \mathrm{prec}(\tau)\bigr)$ --- precision
+    mixes the classes.
+\end{itemize}
+Computation note (a bug the asserts caught): the exact curve comes from
+\emph{sorting by score} --- each prefix of the sorted list is one
+threshold --- not from a grid of $\tau$ values, which misses the
+saturated tails where sigmoid scores pile up near $0$ and $1$.
+
+\begin{proposition}[What the area under ROC is]
+\begin{equation}
+  \boxed{\;\mathrm{AUC} \;=\; \Pr\bigl(s(X^+) > s(X^-)\bigr)
+  \;+\; \tfrac12 \Pr\bigl(s(X^+) = s(X^-)\bigr)\;}
+  \label{eq:auc}
+\end{equation}
+for independent draws $X^+$ from the positive class and $X^-$ from the
+negative class.
+\end{proposition}
+
+\begin{proof}[Proof sketch]
+$\mathrm{AUC} = \int_0^1 \mathrm{TPR}\, d\mathrm{FPR}$. Substituting
+$\mathrm{FPR}(\tau) = \Pr(s(X^-) > \tau)$ as the integration variable,
+$d\mathrm{FPR} = -f_{s^-}(\tau)\,d\tau$ and $\mathrm{TPR}(\tau) =
+\Pr(s(X^+) > \tau)$, so the integral is
+$\int \Pr(s(X^+) > \tau)\, f_{s^-}(\tau)\, d\tau
+= \Pr(s(X^+) > s(X^-))$ by conditioning on $s(X^-) = \tau$. (Ties
+contribute the diagonal half-steps.)
+\end{proof}
+
+Measured: exact-curve area $0.8957$ vs.\ $5\times10^5$ Monte Carlo
+score pairs $0.8954$. AUC is a pure \emph{ranking} quality --- blind
+to calibration, blind to the threshold, blind to the class ratio.
+
+\paragraph{ROC is immune to imbalance; PR is not.} Deleting $95\%$ of
+the positives (score distributions untouched) moves AUC by $0.003$
+($0.8957 \to 0.8984$) but collapses average precision from $0.8585$ to
+$0.4537$: precision divides by \emph{predicted positives}, which
+rebases on the class ratio. Under heavy imbalance, the PR curve is
+where the pain shows --- read it.
+
+\section{Calibration turns costs into thresholds}
+
+A score is \emph{calibrated} if $\Pr(Y{=}1 \mid s(X) = p) = p$ ---
+the score means what it says. The well-specified logistic MLE is
+calibrated by construction (log-loss's population minimizer is the
+true conditional probability; Theory/losses): measured reliability gap
+$\le 0.011$ per decile, Brier score $0.129$.
+
+Calibration is what makes decisions computable. Let a false alarm cost
+$c_{FP}$ and a miss cost $c_{FN}$. Predicting $+$ at a point with
+probability $p$ has expected cost $(1-p)\,c_{FP}$; predicting $-$
+costs $p\,c_{FN}$. Predict $+$ exactly when the first is smaller:
+\begin{equation}
+  \boxed{\;\tau^\ast \;=\; \frac{c_{FP}}{c_{FP} + c_{FN}}\;}
+  \label{eq:tau}
+\end{equation}
+--- the optimal threshold is a \emph{ratio of costs}, no sweep
+required. Measured with $c_{FN} = 5\,c_{FP}$: theory $\tau^\ast =
+0.167$, empirical cost minimum at $0.161$. Two corollaries worth
+keeping: symmetric costs give $\tau^\ast = 1/2$ (the Bayes classifier
+of logistic-regression/); and none of this works if the scores are
+uncalibrated --- an SVM's margins (Theory/losses: hinge remembers only
+the sign) cannot be thresholded by \eqref{eq:tau} without a
+calibration step first.
+
+\paragraph{$F_1$'s hidden threshold.} $F_1$ is also maximized at a
+data-dependent threshold, not $0.5$: measured $0.231$ on the
+imbalanced problem. If a metric picks your threshold, know which
+question that metric answers.
+
+\section{Choosing, in one table}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+metric & the question it answers & fails when\\
+\midrule
+accuracy & how often right & imbalance (base-rate dominance)\\
+precision & believe its $+$? & ignores misses entirely\\
+recall / TPR & how many $+$ found & ignores false alarms\\
+$F_1$/$F_\beta$ & prec--rec compromise & costs aren't sym./explicit\\
+ROC--AUC & ranking quality & imbalance hides FP pain; no $\tau$\\
+PR--AP & rare-class usefulness & incomparable across base rates\\
+log-loss / Brier & probability quality & needs calibrated scores\\
+expected cost & the actual decision & needs costs + calibration\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Experiment}
+
+All numbers above from \texttt{evaluation\_demo.py}: logistic MLEs
+fitted by IRLS on a balanced ($56.5\%$) and an imbalanced ($2.67\%$)
+version of the standard 2D problem, evaluated on $2$--$4\times10^5$
+held-out points; every quantitative claim is an assert. The static
+figure shows the reliability diagram, the cost-vs-threshold curve with
+$\tau^\ast$ marked, and the PR collapse under imbalance. The animation
+slides $\tau$ from $0$ to $1$: the decision line shifts in parallel
+across the probability field (same $w$, different level set), the
+confusion report updates live, and two dots travel the ROC and PR
+curves --- every point of those curves \emph{is} a threshold.
+
+One sentence to keep: \emph{the model earns the score, but the
+threshold spends it --- and only calibrated probabilities let you
+spend optimally.}
+
+\end{document}
