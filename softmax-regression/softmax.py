@@ -274,6 +274,18 @@ axA.scatter(X[sub, 1], X[sub, 2], c=CLASS_RGB[y[sub]], s=8, alpha=.6,
 regions_true = softmax(AG @ W_TRUE.T).argmax(axis=1).reshape(AGX.shape)
 axA.contour(AGX, AGY, regions_true, levels=[0.5, 1.5], colors="k",
             linestyles=":", linewidths=1.3, zorder=2)
+
+
+def region_borders(W_):
+    """The fitted borders as full-strength LINES (the fields fade with
+    confidence, which is ~0 exactly when the borders are swinging most
+    — early on, the lines are the only honest witness of the motion)."""
+    arg = softmax(AG @ W_.T).argmax(axis=1).reshape(AGX.shape)
+    return axA.contour(AGX, AGY, arg, levels=[0.5, 1.5],
+                       colors="#1baf7a", linewidths=2.2, zorder=3)
+
+
+cont = [region_borders(sgd_snaps[0])]
 ring, = axA.plot([], [], "o", mfc="none", mec="#f0b400", ms=14, mew=2.8,
                  label="the sample that just pushed", zorder=4)
 titleA = axA.set_title("")
@@ -321,6 +333,8 @@ def update(k):
     s = FRAME_STEPS[k]
     W_ = sgd_snaps[s]
     im.set_data(region_img(W_))
+    cont[0].remove()                          # redraw the border lines
+    cont[0] = region_borders(W_)
     if s >= 1:                                # the sample used at step s
         i = schedule[s - 1]
         ring.set_data([X[i, 1]], [X[i, 2]])
