@@ -280,8 +280,10 @@ fig.tight_layout()
 # (where only the wobble remains — still moving, every frame).
 from matplotlib.animation import FuncAnimation  # noqa: E402
 
-gs_ = np.linspace(-3, 3, 150)
-GX, GY = np.meshgrid(gs_, gs_)
+XR, YR = 4.6, 3.0                             # big panel: wide view
+gx_ = np.linspace(-XR, XR, 230)
+gy_ = np.linspace(-YR, YR, 150)
+GX, GY = np.meshgrid(gx_, gy_)
 
 
 def field(w_):
@@ -291,8 +293,8 @@ def field(w_):
 def boundary(w_):
     """The 0.5 level set ŵ·[1,x] = 0; undefined while w = 0."""
     if abs(w_[2]) < 1e-12:
-        return gs_, np.full_like(gs_, np.nan)
-    return gs_, -(w_[0] + w_[1] * gs_) / w_[2]
+        return gx_, np.full_like(gx_, np.nan)
+    return gx_, -(w_[0] + w_[1] * gx_) / w_[2]
 
 
 sgd_snaps = [np.zeros(3)] + traj_sgd          # w BEFORE/AFTER each step
@@ -300,36 +302,78 @@ N_SGD = len(traj_sgd)
 FRAME_STEPS = np.r_[0, np.unique(np.geomspace(1, N_SGD,
                                               160).astype(int))]
 
-# per-frame diagnostics on a held-out subset
+# per-frame diagnostics on a held-out subset: the full confusion matrix
+# (TP/FP/FN/TN at threshold 0.5) and everything derived from it
 sub_t = slice(0, 20_000)
-err_snaps = [float(np.mean((sigmoid(X_test[sub_t] @ sgd_snaps[s]) > 0.5)
-                           != y_test[sub_t])) for s in FRAME_STEPS]
+Xt_s, yt_s = X_test[sub_t], y_test[sub_t].astype(bool)
+
+
+def confusion(w_):
+    pred = sigmoid(Xt_s @ w_) > 0.5
+    TP = int(np.sum(pred & yt_s))
+    FP = int(np.sum(pred & ~yt_s))
+    FN = int(np.sum(~pred & yt_s))
+    TN = int(np.sum(~pred & ~yt_s))
+    return TP, FP, FN, TN
+
+
+conf_snaps = [confusion(sgd_snaps[s]) for s in FRAME_STEPS]
+err_snaps = [(FP + FN) / len(yt_s) for TP, FP, FN, TN in conf_snaps]
 nll_snaps = [nll(sgd_snaps[s], X, y) for s in FRAME_STEPS]
 best_nll = min(newton_hist[-1], gd_hist[-1])
 polyak_gap = max(nll(w_sgd, X, y) - best_nll, 1e-16)
 
-figA = plt.figure(figsize=(13.5, 4.4))
-gsA = figA.add_gridspec(1, 3, width_ratios=[1.15, 1, 1])
-axA, axB, axC = [figA.add_subplot(gsA[i]) for i in range(3)]
-figA.suptitle("SGD, live: one sample per iteration pushes the boundary",
-              fontsize=11)
 
-im = axA.imshow(field(sgd_snaps[0]), extent=(-3, 3, -3, 3),
+def report(k):
+    """The classification report at frame k (Theory/evaluation for the
+    definitions and their failure modes)."""
+    TP, FP, FN, TN = conf_snaps[k]
+    n = TP + FP + FN + TN
+    acc = (TP + TN) / n
+    prec = TP / (TP + FP) if TP + FP else float("nan")
+    rec = TP / (TP + FN) if TP + FN else float("nan")
+    spec = TN / (TN + FP) if TN + FP else float("nan")
+    f1 = (2 * prec * rec / (prec + rec)
+          if prec == prec and rec == rec and prec + rec else float("nan"))
+    return (f"{'':8s}{'pred +':>8s}{'pred -':>8s}\n"
+            f"{'true +':8s}{TP:8d}{FN:8d}   recall {rec:5.3f}\n"
+            f"{'true -':8s}{FP:8d}{TN:8d}   spec.  {spec:5.3f}\n"
+            f"\n"
+            f"accuracy {acc:5.3f}  precision {prec:5.3f}\n"
+            f"F1       {f1:5.3f}  NLL       {nll_snaps[k]:.4f}")
+
+
+figA = plt.figure(figsize=(11.5, 8.6))
+gsA = figA.add_gridspec(2, 2, height_ratios=[1.9, 1],
+                        hspace=.28, wspace=.24)
+axA = figA.add_subplot(gsA[0, :])             # the classifier, BIG
+axB = figA.add_subplot(gsA[1, 0])
+axC = figA.add_subplot(gsA[1, 1])
+figA.suptitle("SGD, live: one sample per iteration pushes the boundary",
+              fontsize=12)
+
+im = axA.imshow(field(sgd_snaps[0]), extent=(-XR, XR, -YR, YR),
                 origin="lower", cmap="coolwarm", vmin=0, vmax=1,
                 alpha=.45, zorder=0)
-axA.scatter(X[sub, 1], X[sub, 2], c=y[sub], cmap="coolwarm", s=5,
-            alpha=.5, zorder=1)
-axA.plot(*boundary(W_TRUE), ls=":", color="#0b0b0b", lw=1.5,
+axA.scatter(X[sub, 1], X[sub, 2], c=y[sub], cmap="coolwarm", s=8,
+            alpha=.55, zorder=1)
+axA.plot(*boundary(W_TRUE), ls=":", color="#0b0b0b", lw=1.6,
          label="true boundary", zorder=2)
-axA.plot(*boundary(w_newton), ls="--", color="#eb6834", lw=1.2,
+axA.plot(*boundary(w_newton), ls="--", color="#eb6834", lw=1.3,
          label="optimum (Newton)", zorder=2)
-line_sgd, = axA.plot([], [], color="#1baf7a", lw=2.2,
+line_sgd, = axA.plot([], [], color="#1baf7a", lw=2.6,
                      label="SGD boundary", zorder=3)
-ring, = axA.plot([], [], "o", mfc="none", mec="#f0b400", ms=13, mew=2.5,
+ring, = axA.plot([], [], "o", mfc="none", mec="#f0b400", ms=14, mew=2.8,
                  label="the sample that just pushed", zorder=4)
 titleA = axA.set_title("")
-axA.set(xlim=(-3, 3), ylim=(-3, 3), xlabel="x1", ylabel="x2")
-axA.legend(frameon=False, fontsize=7, loc="upper left")
+axA.set(xlim=(-XR, XR), ylim=(-YR, YR), xlabel="x1", ylabel="x2")
+axA.set_aspect("equal")
+axA.legend(frameon=False, fontsize=8, loc="upper left")
+report_txt = axA.text(.99, .02, "", transform=axA.transAxes,
+                      family="monospace", fontsize=8.5,
+                      ha="right", va="bottom", zorder=5,
+                      bbox=dict(facecolor="white", alpha=.82,
+                                edgecolor="#999", boxstyle="round"))
 
 curve_nll, = axB.plot([], [], color="#1baf7a", lw=1.5,
                       label="SGD iterate")
@@ -356,7 +400,7 @@ for ax in (axA, axB, axC):
     ax.grid(alpha=.3)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
-figA.tight_layout()
+# no tight_layout: the equal-aspect big panel manages its own margins
 
 FRAMES = len(FRAME_STEPS)
 gap_snaps = np.maximum(np.array(nll_snaps) - best_nll, 1e-16)
@@ -374,9 +418,9 @@ def update(k):
     curve_nll.set_data(shown, gap_snaps[1:k + 1])
     curve_err.set_data(shown, err_snaps[1:k + 1])
     epoch = (s - 1) // N + 1 if s else 0
-    titleA.set_text(f"step {s:>6,d} (epoch {epoch})   "
-                    f"NLL {nll_snaps[k]:.4f}   err {err_snaps[k]:.4f}")
-    return im, line_sgd, ring, curve_nll, curve_err, titleA
+    titleA.set_text(f"step {s:>6,d} (epoch {epoch})")
+    report_txt.set_text(report(k))
+    return im, line_sgd, ring, curve_nll, curve_err, titleA, report_txt
 
 
 ani = FuncAnimation(figA, update, frames=FRAMES, interval=80,
