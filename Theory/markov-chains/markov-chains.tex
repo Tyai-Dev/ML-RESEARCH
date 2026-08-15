@@ -1,0 +1,240 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{hyperref}
+
+\newtheorem{definition}{Definition}
+\newtheorem{proposition}{Proposition}
+\newtheorem{theorem}{Theorem}
+\newtheorem{remark}{Remark}
+
+\title{Markov Chains:\\
+The Probability Behind $n$-grams, and Maximum Likelihood on
+Dependent Data}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The LLM track's models all stand on one probabilistic object this
+library never formalized: the Markov chain. This page defines it,
+proves the reduction that makes $k$-th order chains (equivalently,
+$n$-gram models) first-order objects, states Chapman--Kolmogorov,
+stationarity, mixing, and the ergodic theorem --- and then does the
+statistics: maximum likelihood for a chain observed along a path.
+This is the library's first MLE on \emph{dependent} data, and the
+bernoulli estimator report card survives with new proofs: the ergodic
+theorem replaces the law of large numbers, row sample sizes become
+random, and the variance formula gains an occupancy weight. Two
+companion scripts verify every claim:
+\texttt{markov\_chains\_demo.py} (the probability) and
+\texttt{markov\_mle.py} (the statistics, on a weather chain with
+nothing linguistic about it).
+\end{abstract}
+
+\section{The object}
+
+\begin{definition}[Markov chain]
+A sequence $X_1, X_2, \dots$ on a finite state space
+$S = \{1,\dots,V\}$ is a \emph{homogeneous Markov chain} if the future
+depends on the past only through the present:
+\begin{equation}
+  \Pr(X_{t+1} = j \mid X_t = i,\, X_{t-1}, \dots, X_1)
+  \;=\; \Pr(X_{t+1} = j \mid X_t = i) \;=\; P_{ij},
+  \label{eq:markovprop}
+\end{equation}
+independent of $t$. The $V \times V$ matrix $P$ is row-stochastic:
+each row is a conditional distribution --- \emph{one multinoulli per
+current state}. With an initial distribution $\pi_0$, the path
+probability factorizes:
+\begin{equation}
+  \Pr(x_1, \dots, x_T)
+  \;=\; \pi_0(x_1) \prod_{t=1}^{T-1} P_{x_t,\, x_{t+1}}.
+  \label{eq:path}
+\end{equation}
+\end{definition}
+
+\begin{definition}[$k$-th order chain]
+$X_{t+1}$ may depend on the last $k$ states:
+$\Pr(X_{t+1} = j \mid X_t, \dots, X_1) =
+p(j \mid X_{t-k+1}, \dots, X_t)$. This is exactly the $n$-gram model
+of the LLM track with $n = k + 1$.
+\end{definition}
+
+\begin{proposition}[Reduction to first order]
+A $k$-th order chain on $S$ is a first-order chain on the state space
+$S^k$ of $k$-tuples: set $Y_t = (X_{t-k+1}, \dots, X_t)$; then $Y$ is
+Markov with transitions
+\begin{equation}
+  \Pr\bigl(Y_{t+1} = (x_{t-k+2}, \dots, x_t, j) \mid Y_t\bigr)
+  \;=\; p(j \mid Y_t),
+  \label{eq:lift}
+\end{equation}
+and zero probability to any tuple that does not shift correctly.
+\end{proposition}
+
+\begin{proof}
+$Y_{t+1}$ is a deterministic shift of $Y_t$ plus the single new symbol
+$X_{t+1}$, whose law depends only on the last $k$ states --- i.e.\
+only on $Y_t$. Hence $Y$ satisfies \eqref{eq:markovprop} on $S^k$.
+\end{proof}
+
+This proposition is why ``$n$-gram model'' and ``Markov chain'' are the
+same mathematics, and why the $k$-gram count table has $V^k$ rows (the
+curse measured in \texttt{llm/ngram-mlp}). Verified numerically on
+real data: the trigram ($k=2$) log-likelihood of the Shakespeare
+corpus computed directly and via the lifted pair-state chain agree to
+$10^{-6}$ absolute --- term for term the same sum.
+
+\section{Dynamics: $n$ steps, stationarity, mixing, ergodicity}
+
+\begin{proposition}[Chapman--Kolmogorov]
+$\Pr(X_{t+n} = j \mid X_t = i) = (P^n)_{ij}$: condition on the
+intermediate state and sum --- which is exactly matrix multiplication.
+Measured on a simulated path ($T = 2\times10^5$): empirical two-step
+frequencies match $P^2$ to $0.004$.
+\end{proposition}
+
+\begin{definition}[Stationary distribution]
+$\pi$ with $\pi P = \pi$ --- a left eigenvector of eigenvalue $1$,
+normalized to a distribution. If the chain starts at $\pi$, every
+marginal stays $\pi$.
+\end{definition}
+
+\begin{theorem}[Convergence and mixing]
+If $P$ is irreducible (every state reachable from every state) and
+aperiodic, then $\pi$ is unique and $\pi_0 P^t \to \pi$ for
+\emph{every} start $\pi_0$ --- the chain forgets its origin. The rate
+is spectral: ordering the eigenvalue moduli
+$1 = |\lambda_1| > |\lambda_2| \ge \cdots$,
+\begin{equation}
+  \mathrm{TV}\bigl(\pi_0 P^t,\, \pi\bigr) \;=\; O(|\lambda_2|^t).
+  \label{eq:mixing}
+\end{equation}
+\end{theorem}
+Measured on the weather chain of the scripts: the TV decay slope is
+$-0.8098$ against $\log|\lambda_2| = -0.8098$ --- the spectrum
+predicting the dynamics to four decimals. The animation shows three
+point-mass starts flowing to the same $\pi$.
+
+\begin{theorem}[Ergodic theorem]
+For an irreducible chain, time averages along ONE path converge:
+\begin{equation}
+  \frac{1}{T}\,\#\{t \le T : X_t = i\} \;\xrightarrow{\ a.s.\ }\;
+  \pi_i .
+  \label{eq:ergodic}
+\end{equation}
+\end{theorem}
+This is the law of large numbers for dependent data, and it is
+quietly load-bearing for the whole LLM track: it is the reason one
+long text is enough to learn a chain. Measured: occupancy matches
+$\pi$ to $0.002$ at $T = 2\times10^5$.
+
+\section{Maximum likelihood on a dependent stream}
+
+Observe $R$ paths $x^{(r)}$ of length $T$. Taking logs of
+\eqref{eq:path} and collecting counts $n_{ij}$ (transitions $i \to j$
+pooled over paths) and first-state counts $f_i$:
+\begin{equation}
+  \ell(\pi_0, P)
+  \;=\; \sum_i f_i \log \pi_0(i)
+  \;+\; \sum_{i}\sum_{j} n_{ij} \log P_{ij}.
+  \label{eq:loglik}
+\end{equation}
+No term couples two rows of $P$, or $P$ with $\pi_0$: the problem
+separates into $V{+}1$ independent multinoulli MLEs, each solved by
+the count-and-normalize argument (Lagrange proof in
+\texttt{llm/bigram.tex}, Gibbs optimality in
+\texttt{Theory/information-theory}):
+\begin{equation}
+  \boxed{\;\hat{P}_{ij} \;=\; \frac{n_{ij}}{n_i},
+  \qquad
+  \hat{\pi}_0(i) \;=\; \frac{f_i}{R}\;}
+  \label{eq:mle}
+\end{equation}
+with $n_i = \sum_j n_{ij}$. The counts $(n_{ij}, f_i)$ are
+\emph{sufficient}: the entire dataset enters through them.
+
+\begin{remark}[The initial-state subtlety]
+From ONE path, $\hat\pi_0$ is a point mass on the observed first state
+--- degenerate, and unimprovable: a single draw from $\pi_0$ is all
+the data contains about it. The LLM track silently dropped this one
+factor of \eqref{eq:path} (one term in $10^6$). With many paths it
+becomes an ordinary multinoulli estimate: measured, $5000$ paths
+recover a non-uniform $\pi_0 = (0.5, 0.2, 0.3)$ exactly to three
+decimals.
+\end{remark}
+
+\subsection{The report card, under dependence}
+
+The samples are correlated; the bernoulli report card survives with
+new proofs, every line verified by \texttt{markov\_mle.py} on a
+3-state weather chain:
+
+\paragraph{Consistent.} Ergodicity \eqref{eq:ergodic} replaces the
+LLN: state $i$ is visited $n_i \approx T\pi_i \to \infty$ times, and
+conditional on the visit times, row $i$'s transitions are i.i.d.\
+draws from row $P_i$ (the Markov property makes each next-step draw
+depend only on the current state --- the dependence structure is
+exactly what makes the row samples clean). Hence
+$\hat P_i \to P_i$.
+
+\paragraph{Rate.} The row sample size is random but concentrates at
+$T\pi_i$, giving
+\begin{equation}
+  \mathrm{Var}(\hat P_{ij})
+  \;\approx\; \frac{P_{ij}\,(1 - P_{ij})}{T\,\pi_i}
+  \label{eq:var}
+\end{equation}
+--- the multinoulli variance, weighted by occupancy: \emph{rare states
+learn slowly}. Measured over $1000$ replicated paths ($T = 2000$):
+the formula matches the empirical standard deviation of every entry to
+within $2.7\%$. Aggregate RMS error falls with log-log slope $-0.480$
+against the theoretical $-1/2$ over $T = 500 \to 128{,}000$.
+
+\paragraph{Confidence intervals.} $\hat P_{ij} \pm 1.96
+\sqrt{\hat P_{ij}(1-\hat P_{ij})/n_i}$ covers the truth in $94.7\%$ of
+$1000$ replications --- the CLT behind it is a martingale CLT rather
+than the i.i.d.\ one, but the practice is unchanged.
+
+\begin{remark}[Bias, honestly]
+$\hat P_{ij}$ is unbiased \emph{conditional on the row counts} $n_i$,
+but $n_i$ is random and correlated with the estimates, so exact
+unconditional unbiasedness fails at order $1/T$; measured:
+$\max_{ij} |\mathbb{E}\hat P_{ij} - P_{ij}| = 0.0007$ at $T = 2000$.
+Dependence costs a vanishing bias term, nothing more.
+\end{remark}
+
+\subsection{The fitted chain is self-consistent}
+
+A pleasing closed loop between \eqref{eq:mle} and stationarity: for a
+chain fitted to one long path, the empirical transition counts form a
+flow that enters and leaves every state equally often (up to the two
+path endpoints), so the letter-frequency vector is \emph{almost
+exactly} stationary for $\hat P$. Measured on Shakespeare
+(\texttt{llm/bigram}'s $65 \times 65$ chain): the leading left
+eigenvector of $\hat P$ matches the empirical character frequencies to
+$1.0\times10^{-6}$ --- an eigenvector of a $65\times65$ matrix
+predicting the histogram of a million characters.
+
+\section{Experiments}
+
+\texttt{markov\_chains\_demo.py} (probability): Chapman--Kolmogorov,
+ergodic occupancy, the mixing animation (three starts flowing to one
+$\pi$, TV decay on the $|\lambda_2|^t$ line), the $k$-th order
+reduction on Shakespeare trigrams, and the stationary-vs-histogram
+check. \texttt{markov\_mle.py} (statistics): the $\sqrt{T}$ law on
+dependent data, the occupancy-weighted variance formula
+\eqref{eq:var}, CI coverage, $\hat\pi_0$ from many paths, a 14-day
+forecast sampled from the \emph{learned} weather chain, and the
+animation --- one path streaming in, $|\hat P - P|$ fading, the error
+descending the $-1/2$ line, occupancy bars converging to $\pi$.
+
+One sentence to keep: \emph{dependence does not break maximum
+likelihood --- it only makes the sample sizes random, with the ergodic
+theorem standing where the law of large numbers used to.}
+
+\end{document}
