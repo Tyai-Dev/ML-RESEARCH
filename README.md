@@ -17,6 +17,14 @@ every hand-derived gradient is checked against autograd by driving both
 through identical schedules; final results in tex get their own numbered
 equation.
 
+**Results site**: `python site/build.py` generates a static HTML site in
+`site/out/` — one page per experiment with tabs for the verification
+checklist (the assert-backed ": OK" lines), animations (mp4/scrubbable
+player), plots, the compiled LaTeX PDF, the captured terminal output,
+and the source. No server; open `site/out/index.html` or
+`python -m http.server -d site/out`. A page only builds if every assert
+in its script passes.
+
 ## Experiments
 
 | Folder | Concept |

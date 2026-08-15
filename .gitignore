@@ -6,6 +6,9 @@ __pycache__/
 # model checkpoints
 *.pt
 
+# generated results site (rebuild: python site/build.py)
+site/out/
+
 # LaTeX build artifacts
 *.aux
 *.log
