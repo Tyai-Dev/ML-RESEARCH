@@ -47,6 +47,8 @@ must numerically beat the last:
 | `llm/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
 | `llm/gpt/` | Full decoder assembled from the verified parts: 4 blocks, T=128, 3.21M params, weight tying, AdamW + warmup/cosine + clipping (each ablated — verdict: insurance, not magic); 2.3 min on the 4070 | 1.4724 | **4.36** |
 
+**Talk to them**: `llm/chat/chat.py` (F5) is one REPL over every model — pick a rung with `/model`, type a line, and it becomes part of a play the model continues autoregressively. Models build on first selection and cache to `llm/chat/checkpoints/`; switching rungs mid-conversation lets you *feel* the ladder (the bigram babbles no matter what you say; the GPT answers in blank verse; `gpt-austen` switches to drawing-room prose).
+
 Beyond the ladder (same measuring stick — NLL per **char**, so tokenizers stay comparable):
 
 | Folder | Experiment | Headline number |
