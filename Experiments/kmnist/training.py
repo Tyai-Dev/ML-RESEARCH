@@ -17,6 +17,7 @@ All styles share the same mechanics: seeded shuffles, per-epoch
 validation, best-checkpoint restore at the end.
 """
 
+import sys
 import time
 
 import numpy as np
@@ -48,7 +49,9 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
     if log_style != "quiet":
         print(f"{describe(model)} | {type(loss_fn).__name__} | "
               f"adam lr={lr:g} | {n:,} train / {len(X_val):,} val | "
-              f"batch {batch} | {X_train.device.type}")
+              f"batch {batch} ({n_batches:,} batches/epoch) | "
+              f"{X_train.device.type}")
+    tty = sys.stdout.isatty()          # live bar only in a real terminal
 
     bar = None
     if log_style == "tqdm":
@@ -84,6 +87,16 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
             if log_style == "tqdm" and b % 20 == 0:
                 bar.set_postfix(loss=f"{run_loss / seen:.3f}",
                                 acc=f"{run_corr / seen:.3f}")
+            elif log_style == "delta" and tty \
+                    and (b % 20 == 0 or b == n_batches - 1):
+                # the bar tracks THIS epoch's batches, live
+                fill = round(22 * (b + 1) / n_batches)
+                print(f"\repoch {epoch:>2}/{epochs} "
+                      f"[{'=' * fill}>{'-' * (22 - fill)}] "
+                      f"{b + 1:>5,}/{n_batches:,} | "
+                      f"loss {run_loss / seen:.3f} | "
+                      f"acc {run_corr / seen:6.2%}",
+                      end="", flush=True)
         if bar is not None:
             bar.close()
 
@@ -102,9 +115,9 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
         eta = (time.perf_counter() - t_start) / epoch * (epochs - epoch)
         d = lambda k, v: v - prev[k] if k in prev else 0.0
         if log_style == "delta":
-            fill = round(22 * epoch / epochs)
-            print(f"epoch {epoch:>2}/{epochs} "
-                  f"[{'=' * fill}>{'-' * (22 - fill)}] "
+            if tty:
+                print("\r" + " " * 78 + "\r", end="")   # clear live bar
+            print(f"epoch {epoch:>2}/{epochs} [{'=' * 22}>] "
                   f"train {tr_loss:.3f} ({d('t', tr_loss):+.3f}) | "
                   f"val {val_loss:.3f} ({d('v', val_loss):+.3f}) | "
                   f"acc {val_acc:6.2%} ({d('a', val_acc):+.2%})"
