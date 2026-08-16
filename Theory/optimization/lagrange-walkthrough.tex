@@ -1,0 +1,139 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+
+\newtheorem{remark}{Remark}
+
+\title{Lagrange Multipliers, Walked Through Once:\\
+How the Constraint Produces the $/n$ in the Multinoulli MLE}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+A companion to the optimization note's Section 3: the same theory, but
+executed slowly on one example --- the multinoulli MLE --- with the
+role of each equation made explicit. Read this when you remember
+\emph{that} the Lagrangian works but not \emph{why} the constraint
+enters at the end.
+
+\section{The problem, and why plain stationarity fails}
+
+Maximize the multinoulli log-likelihood over the probability vector:
+\begin{equation}
+  \max_{p}\;\; \ell(p) = \sum_{j=1}^{k} n_j \ln p_j
+  \qquad\text{subject to}\qquad
+  g(p) = \sum_{j=1}^{k} p_j - 1 = 0 .
+  \label{eq:problem}
+\end{equation}
+Try the unconstrained move first:
+$\partial \ell / \partial p_j = n_j / p_j > 0$ everywhere. The gradient
+is \emph{never} zero --- $\ell$ simply wants every $p_j$ larger, without
+bound. There is no interior stationary point; only the constraint stops
+the climb. The maximum therefore sits \emph{on} the constraint surface,
+at a point where $\nabla\ell \ne 0$. Fermat's rule does not apply and
+something must replace it.
+
+\section{The idea: parallel gradients}
+
+At a constrained maximum, no small move \emph{along the constraint
+surface} can improve $\ell$ (otherwise we would make it). So the
+component of $\nabla\ell$ tangent to the surface is zero ---
+$\nabla\ell$ is \emph{perpendicular} to the surface. But $\nabla g$ is
+also perpendicular to the surface: the gradient of a function is always
+normal to its level sets, and the surface \emph{is} the level set
+$g = 0$. Two vectors perpendicular to the same surface are parallel:
+\begin{equation}
+  \boxed{\;\nabla \ell(p^\ast) \;=\; \lambda\, \nabla g(p^\ast)\;}
+  \label{eq:parallel}
+\end{equation}
+for some scalar $\lambda$ --- the \emph{Lagrange multiplier}. That one
+line is the entire theory. The \emph{Lagrangian}
+\begin{equation}
+  \Lambda(p, \lambda)
+  \;=\; \ell(p) \;+\; \lambda\Bigl(1 - \sum_j p_j\Bigr)
+  \label{eq:lagrangian}
+\end{equation}
+is bookkeeping that packages \eqref{eq:parallel}: demanding
+$\partial \Lambda / \partial p_j = 0$ for all $j$ reproduces the
+parallel-gradients condition, and demanding
+$\partial \Lambda / \partial \lambda = 0$ reproduces the constraint
+itself. One unconstrained stationarity problem in $(p, \lambda)$
+encodes the constrained problem in $p$.
+
+\section{The mechanics, step by step}
+
+\paragraph{Step 1: stationarity in each $p_j$ --- the shape.}
+\begin{equation*}
+  \frac{\partial \Lambda}{\partial p_j}
+  = \frac{n_j}{p_j} - \lambda = 0
+  \qquad\Longrightarrow\qquad
+  p_j = \frac{n_j}{\lambda}.
+\end{equation*}
+Notice what this delivers: the \emph{shape} of the solution --- each
+$p_j$ proportional to its count --- with one unknown scale $\lambda$
+left dangling. This is typical. The gradient equations determine the
+answer only up to exactly the freedom the constraint will remove.
+
+\paragraph{Step 2: the constraint fixes the scale --- the $/n$.}
+We hold $k$ expressions $p_j = n_j/\lambda$ with one unknown, and one
+equation not yet used: $\sum_j p_j = 1$. Substitute:
+\begin{equation*}
+  \sum_{j} \frac{n_j}{\lambda} = 1
+  \qquad\Longrightarrow\qquad
+  \frac{1}{\lambda}\underbrace{\sum_{j} n_j}_{=\,n} = 1
+  \qquad\Longrightarrow\qquad
+  \lambda = n .
+\end{equation*}
+\emph{This} is where the constraint acts: not in the differentiation,
+but as the closing equation that pins the multiplier.
+
+\paragraph{Step 3: back-substitute.}
+\begin{equation}
+  \hat p_j \;=\; \frac{n_j}{n}\,.
+  \label{eq:answer}
+\end{equation}
+
+\medskip
+\noindent
+The division of labor, in one sentence: \textbf{the gradient equations
+pin the direction of the answer; the constraint pins its scale.}
+
+\section{What $\lambda$ means, and why we discard it}
+
+The multiplier is the \emph{exchange rate} between objective and
+constraint: at the optimum,
+\begin{equation}
+  \lambda \;=\; \frac{d\,\ell^\ast}{d\,c}
+  \qquad\text{for the relaxed constraint } \textstyle\sum_j p_j = c ,
+  \label{eq:shadow}
+\end{equation}
+the improvement in optimal log-likelihood per unit of loosened
+constraint (``shadow price''). Here $\lambda = n$: allowing the
+probabilities to sum to $1+\varepsilon$ would buy roughly
+$n\varepsilon$ extra log-likelihood --- each of the $n$ observations
+would enjoy proportionally inflated probability. We solve for
+$\lambda$, use it, and throw it away: it is scaffolding, not part of
+the answer.
+
+\begin{remark}[The certificate still matters]
+Parallel gradients \eqref{eq:parallel} is only \emph{necessary} --- it
+holds equally at constrained minima and saddles. Here
+$\ell(p) = \sum_j n_j \ln p_j$ is strictly concave and the simplex is
+convex, so the unique point satisfying \eqref{eq:parallel} is the
+global constrained maximum. Without concavity, check candidates.
+\end{remark}
+
+\begin{remark}[The constraint we ignored]
+Problem \eqref{eq:problem} also carries $p_j \ge 0$, silently. We could
+ignore it because $\ln p_j \to -\infty$ as $p_j \to 0$ whenever
+$n_j > 0$: the objective polices the boundary by itself. When
+inequality constraints \emph{can} bind, equality Lagrange theory
+generalizes to the KKT conditions --- multipliers that must be
+nonnegative and vanish on inactive constraints --- covered in the
+optimization note, Section 3.
+\end{remark}
+
+\end{document}

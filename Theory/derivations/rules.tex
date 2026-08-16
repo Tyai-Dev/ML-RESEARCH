@@ -1,0 +1,240 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{definition}{Definition}
+\newtheorem{remark}{Remark}
+
+\title{Differentiation Rules:\\
+The Complete Toolkit Behind Every Gradient in This Repository}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+Every derivation in the companion notes --- activation functions, loss
+functions, every MLE --- is an application of a small, closed set of
+rules. This page states that set once, precisely, so the other pages can
+cite rather than re-derive. Nothing here is specific to machine
+learning; everything downstream is.
+
+\section{The scalar rules}
+
+Throughout, $f, g$ are differentiable at the point in question and
+$c \in \mathbb{R}$ is a constant.
+
+\paragraph{Linearity.} Differentiation is a linear operator:
+\begin{equation}
+  \frac{d}{dx}\bigl[c\,f(x) + g(x)\bigr] = c\,f'(x) + g'(x).
+  \label{eq:linearity}
+\end{equation}
+This is why we can differentiate a sum of per-example losses term by
+term --- the gradient of the empirical risk is the mean of per-example
+gradients.
+
+\paragraph{Product rule.}
+\begin{equation}
+  \frac{d}{dx}\bigl[f(x)\,g(x)\bigr] = f'(x)\,g(x) + f(x)\,g'(x).
+  \label{eq:product}
+\end{equation}
+
+\paragraph{Quotient rule.} For $g(x) \ne 0$,
+\begin{equation}
+  \frac{d}{dx}\left[\frac{f(x)}{g(x)}\right]
+  = \frac{f'(x)\,g(x) - f(x)\,g'(x)}{g(x)^2}.
+  \label{eq:quotient}
+\end{equation}
+Not an independent axiom: write $f/g = f \cdot g^{-1}$ and apply the
+product rule \eqref{eq:product} together with the chain rule
+\eqref{eq:chain} on $g^{-1}$. The sigmoid and softmax derivations both
+run on this rule.
+
+\paragraph{Chain rule.} If $y = f(u)$ and $u = g(x)$, then
+\begin{equation}
+  \frac{dy}{dx} = \frac{dy}{du}\cdot\frac{du}{dx}
+  = f'\bigl(g(x)\bigr)\,g'(x).
+  \label{eq:chain}
+\end{equation}
+The single most important rule in this repository:
+\emph{backpropagation is the chain rule}, applied recursively through a
+composition of layers and organized to reuse intermediate products.
+
+\paragraph{Power rule.} For any real $n$ (on the domain where $x^n$ is
+defined and differentiable),
+\begin{equation}
+  \frac{d}{dx}\,x^n = n\,x^{n-1}.
+  \label{eq:power}
+\end{equation}
+
+\paragraph{Inverse function rule.} If $f$ is invertible near $x$ with
+$f'(x) \ne 0$, then
+\begin{equation}
+  \bigl(f^{-1}\bigr)'(y) = \frac{1}{f'\bigl(f^{-1}(y)\bigr)}.
+  \label{eq:inverse}
+\end{equation}
+This is how the derivative of $\log$ falls out of the derivative of
+$\exp$, and how the logit's derivative falls out of the sigmoid's.
+
+\section{The transcendental derivatives}
+
+The primitives that appear in every likelihood and every activation:
+\begin{equation}
+  \frac{d}{dx}\,e^{x} = e^{x},
+  \qquad
+  \frac{d}{dx}\,a^{x} = a^{x}\ln a,
+  \qquad
+  \frac{d}{dx}\,\ln x = \frac{1}{x},
+  \qquad
+  \frac{d}{dx}\,\log_a x = \frac{1}{x \ln a}.
+  \label{eq:transcendental}
+\end{equation}
+And the trigonometric/hyperbolic pairs used by tanh-family activations:
+\begin{equation}
+  \frac{d}{dx}\sinh x = \cosh x,
+  \qquad
+  \frac{d}{dx}\cosh x = \sinh x,
+  \qquad
+  \frac{d}{dx}\tanh x = \operatorname{sech}^2 x = 1 - \tanh^2 x.
+  \label{eq:hyperbolic}
+\end{equation}
+
+\paragraph{The log-derivative trick.} Combining the chain rule with
+$(\ln x)' = 1/x$:
+\begin{equation}
+  \frac{d}{dx}\,\ln f(x) = \frac{f'(x)}{f(x)}
+  \qquad\Longleftrightarrow\qquad
+  f'(x) = f(x)\,\frac{d}{dx}\,\ln f(x).
+  \label{eq:logderiv}
+\end{equation}
+This identity is why we maximize \emph{log}-likelihoods: products of
+densities become sums, and the derivative of each term is a ratio. It
+reappears as the score function in statistics and as the REINFORCE
+estimator in reinforcement learning.
+
+\section{Multivariable: gradient, Jacobian, and the chain rule that
+backpropagation uses}
+
+\begin{definition}[Gradient and Jacobian]
+For $f : \mathbb{R}^n \to \mathbb{R}$, the gradient is the column vector
+of partials, $(\nabla f)_i = \partial f / \partial x_i$. For
+$\mathbf{f} : \mathbb{R}^n \to \mathbb{R}^m$, the Jacobian is the
+$m \times n$ matrix
+\begin{equation}
+  J_{ij} = \frac{\partial f_i}{\partial x_j}.
+  \label{eq:jacobian}
+\end{equation}
+\end{definition}
+
+\begin{theorem}[Multivariable chain rule]
+If $\mathbf{h} = \mathbf{f} \circ \mathbf{g}$ with
+$\mathbf{g} : \mathbb{R}^n \to \mathbb{R}^m$ and
+$\mathbf{f} : \mathbb{R}^m \to \mathbb{R}^k$, then Jacobians
+\emph{multiply}:
+\begin{equation}
+  J_{\mathbf{h}}(x) = J_{\mathbf{f}}\bigl(\mathbf{g}(x)\bigr)\,
+  J_{\mathbf{g}}(x).
+  \label{eq:multichain}
+\end{equation}
+\end{theorem}
+
+For a scalar loss $L$ at the end of the composition (the only case
+training cares about), take the transpose of \eqref{eq:multichain} to
+get the gradient recursion
+\begin{equation}
+  \nabla_x L = J_{\mathbf{g}}(x)^{\top}\,\nabla_{\mathbf{g}(x)} L ,
+  \label{eq:backprop}
+\end{equation}
+i.e.\ each layer maps the \emph{upstream} gradient through its
+transposed Jacobian. Backpropagation is exactly
+\eqref{eq:backprop} applied layer by layer, right to left --- the
+right-to-left order is what makes it cheap: every intermediate product
+is a vector, never a full Jacobian.
+
+\section{Matrix calculus identities}
+
+Convention: gradients of scalars are column vectors shaped like the
+variable (denominator layout). The identities every linear layer needs,
+for $a, x \in \mathbb{R}^n$, $A \in \mathbb{R}^{n\times n}$,
+$W \in \mathbb{R}^{m\times n}$:
+\begin{align}
+  \nabla_x \,(a^{\top}x) &= a,
+  \label{eq:gradlinear}\\[2pt]
+  \nabla_x \,(x^{\top}Ax) &= (A + A^{\top})\,x
+  \;\;\bigl(= 2Ax \text{ for symmetric } A\bigr),
+  \label{eq:gradquad}\\[2pt]
+  \nabla_x \,\lVert x \rVert_2^2 &= 2x,
+  \label{eq:gradnorm}\\[2pt]
+  \nabla_x\,\lVert y - Wx \rVert_2^2 &= -2\,W^{\top}(y - Wx),
+  \label{eq:gradlsq}\\[2pt]
+  \nabla_W\,\lVert y - Wx \rVert_2^2 &= -2\,(y - Wx)\,x^{\top}.
+  \label{eq:gradlsqW}
+\end{align}
+Equation \eqref{eq:gradlsq} is the normal-equations engine of the
+linear-regression note; \eqref{eq:gradlsqW} is the weight gradient of
+every dense layer under squared loss. Two derivatives of matrix
+functionals that MLE for the Gaussian needs:
+\begin{equation}
+  \nabla_A \operatorname{tr}(BA) = B^{\top},
+  \qquad
+  \nabla_A \ln\det A = A^{-\top}
+  \quad (A \text{ invertible}).
+  \label{eq:matfunc}
+\end{equation}
+
+\section{Two rules for the boundary cases}
+
+\paragraph{L'H\^opital.} If $f(x) \to 0$ and $g(x) \to 0$ (or both
+$\to \pm\infty$) as $x \to a$, and the right-hand limit exists, then
+\begin{equation}
+  \lim_{x\to a} \frac{f(x)}{g(x)} = \lim_{x\to a} \frac{f'(x)}{g'(x)}.
+  \label{eq:lhopital}
+\end{equation}
+Used to resolve $0 \cdot \log 0 = 0$ in entropy and cross-entropy, and
+to show softplus $\to$ ReLU as temperature $\to 0$.
+
+\paragraph{Subgradients.} Where a convex $f$ has a kink (ReLU at $0$,
+absolute loss at $0$, hinge at margin $1$), the derivative is replaced
+by the \emph{subdifferential}: the set of slopes $g$ with
+$f(y) \ge f(x) + g\,(y - x)$ for all $y$. For example,
+\begin{equation}
+  \partial\,|x|\,\Big|_{x=0} = [-1, 1],
+  \qquad
+  \partial \max(0, x)\Big|_{x=0} = [0, 1].
+  \label{eq:subgrad}
+\end{equation}
+Optimality generalizes from $f'(x) = 0$ to $0 \in \partial f(x)$;
+frameworks just pick one element (PyTorch uses $0$ for ReLU at the
+kink), which is harmless because the kink is hit with probability zero.
+
+\section{Summary table}
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Rule & Statement & Where it earns its keep\\
+\midrule
+Linearity & $(cf+g)' = cf' + g'$ & sums of per-example losses\\
+Product & $(fg)' = f'g + fg'$ & likelihood products\\
+Quotient & $(f/g)' = (f'g - fg')/g^2$ & sigmoid, softmax\\
+Chain & $(f\circ g)' = f'(g)\,g'$ & backpropagation\\
+Power & $(x^n)' = nx^{n-1}$ & polynomial losses\\
+Inverse & $(f^{-1})' = 1/f'(f^{-1})$ & logit from sigmoid\\
+Log-derivative & $(\ln f)' = f'/f$ & every MLE, REINFORCE\\
+Jacobian chain & $J_{f\circ g} = J_f\,J_g$ & layer composition\\
+Subgradient & $0 \in \partial f$ & ReLU, hinge, absolute loss\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\noindent
+The companion pages apply these: \texttt{activation-functions.tex}
+differentiates every activation in the repository, and
+\texttt{loss-functions.tex} differentiates every loss --- each step
+there cites a rule from here.
+
+\end{document}

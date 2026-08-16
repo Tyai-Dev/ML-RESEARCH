@@ -47,6 +47,135 @@ little bias for less variance is often the better deal
 \eqref{eq:msedecomp}; regularization is this trade, industrialized.
 \end{remark}
 
+\section{Where estimators come from: MLE and MAP}
+
+Section 1 grades estimators; this section is where the two canonical
+ones come from. Both start from the same object.
+
+\begin{definition}[Likelihood]
+Fix the observed sample $x_{1:n}$ and read the joint density as a
+function of the \emph{parameter}:
+\begin{equation}
+  L(\theta) \;=\; \prod_{i=1}^{n} f(x_i;\theta).
+  \label{eq:likelihood}
+\end{equation}
+$L$ is not a probability distribution over $\theta$ --- it need not
+integrate to one in $\theta$. It is a scoring of parameter values by
+how well they explain what was actually seen.
+\end{definition}
+
+\subsection{Maximum likelihood}
+
+\begin{definition}[MLE]
+\begin{equation}
+  \hat\theta_{\mathrm{MLE}} \;=\; \arg\max_{\theta}\, L(\theta)
+  \;=\; \arg\max_{\theta}\, \ell(\theta),
+  \qquad
+  \ell(\theta) = \sum_{i=1}^{n} \ln f(x_i;\theta).
+  \label{eq:mledef}
+\end{equation}
+\end{definition}
+
+Passing to $\ell = \ln L$ changes nothing about the maximizer ($\ln$ is
+strictly increasing) and everything about the algebra: the product
+becomes a sum, each term differentiates by the log-derivative rule
+(derivations note), and numerically a sum of $n$ log-densities does not
+underflow the way a product of $n$ densities does.
+
+\paragraph{The solving procedure.} Always the same four steps:
+\begin{enumerate}
+  \item Write $\ell(\theta)$, collapsing the sum into the sufficient
+    statistics (Section 3) --- the data enters only through them.
+  \item Differentiate in $\theta$. If the parameters are constrained
+    (probabilities on a simplex), maximize the Lagrangian instead
+    (optimization note).
+  \item Solve the stationarity equation $\nabla \ell = 0$.
+  \item Certify: strict concavity of $\ell$ makes the stationary point
+    the unique global maximum; otherwise check the Hessian and the
+    boundary. (For Gaussians, concavity holds in the right
+    parameterization --- the precision, not the covariance.)
+\end{enumerate}
+The distributions note executes these four steps verbatim for
+Bernoulli, categorical, and both Gaussians.
+
+Why maximum likelihood is \emph{the} default is this page's later
+sections: the MLE is consistent, asymptotically normal, and
+asymptotically efficient \eqref{eq:mleasymp} --- in the limit, nothing
+does better. Two more properties worth naming now: \emph{invariance}
+(the MLE of $g(\theta)$ is $g(\hat\theta)$), and the
+information-theoretic reading --- maximizing $\ell$ is minimizing the
+cross-entropy between the empirical distribution and the model, i.e.\
+minimizing $D_{\mathrm{KL}}(\hat p_{\mathrm{data}} \,\Vert\,
+p_\theta)$ (information-theory note): MLE fits the model distribution
+to the data distribution, which is why every loss in the LLM track is
+an NLL.
+
+\subsection{Maximum a posteriori}
+
+MAP treats $\theta$ itself as random, with a \emph{prior} density
+$\pi(\theta)$ encoding what is believed before seeing data. Bayes'
+theorem updates it:
+\begin{equation}
+  \pi(\theta \mid x_{1:n})
+  \;=\; \frac{L(\theta)\,\pi(\theta)}
+             {\int L(\theta')\,\pi(\theta')\,d\theta'} .
+  \label{eq:bayes}
+\end{equation}
+
+\begin{definition}[MAP]
+\begin{equation}
+  \hat\theta_{\mathrm{MAP}}
+  \;=\; \arg\max_{\theta}\, \pi(\theta \mid x_{1:n})
+  \;=\; \arg\max_{\theta}\,\bigl[\ell(\theta) + \ln \pi(\theta)\bigr].
+  \label{eq:mapdef}
+\end{equation}
+\end{definition}
+The denominator of \eqref{eq:bayes} does not involve $\theta$, so it
+drops from the $\arg\max$ --- MAP never computes the (usually
+intractable) evidence integral. What remains is the MLE's objective
+plus one additive term: \emph{the same calculus, with $\ln\pi$ along
+for the ride}. Every MAP derivation is the corresponding MLE derivation
+with modified constants.
+
+\begin{definition}[Conjugate prior]
+$\pi$ is \emph{conjugate} to the likelihood if the posterior
+\eqref{eq:bayes} belongs to the same family as $\pi$. Then updating is
+pure bookkeeping on the family's parameters:
+Beta$\to$Beta for Bernoulli counts, Dirichlet$\to$Dirichlet for
+categorical counts, Gaussian$\to$Gaussian for a Gaussian mean,
+inverse-Gamma (inverse-Wishart) $\to$ same for a variance (covariance).
+\end{definition}
+
+Conjugacy is what makes MAP solutions closed-form, and it gives them a
+uniform reading: the prior acts as \emph{pseudo-observations}. A
+Beta$(\alpha,\beta)$ prior is $\alpha{-}1$ imaginary successes and
+$\beta{-}1$ imaginary failures added to the tally; a Gaussian prior on
+a mean is an imaginary sample at $\mu_0$ whose weight is the prior
+precision; add-one (Laplace) smoothing of the categorical MLE is
+exactly the Dirichlet-MAP with $\alpha_j = 2$. As $n$ grows the real
+data outvotes the imaginary --- $\ell$ scales with $n$ while $\ln\pi$
+stays fixed --- so
+$\hat\theta_{\mathrm{MAP}} \to \hat\theta_{\mathrm{MLE}}$, and with a
+flat prior ($\pi \equiv$ const on the parameter space) they coincide at
+every $n$.
+
+\begin{remark}[MAP is regularization]
+For a model with weights $w$, take
+$\pi(w) = \mathcal{N}(0, \tau^2 I)$: then
+$\ln\pi(w) = -\tfrac{1}{2\tau^2}\lVert w \rVert_2^2 + \text{const}$,
+and \eqref{eq:mapdef} is empirical risk with an L2 penalty --- ridge
+regression, weight decay. A Laplace prior gives
+$-\lambda \lVert w\rVert_1$ --- lasso. Every regularized loss in this
+repository is a MAP estimate whose prior is stated by the penalty.
+\end{remark}
+
+\begin{remark}[One honest asymmetry]
+The MLE is invariant under reparameterization; the MAP is \emph{not}
+(the prior density picks up a Jacobian when $\theta$ is transformed,
+which can move the posterior's peak). The price of injecting beliefs is
+that the answer depends on the coordinates in which they were stated.
+\end{remark}
+
 \section{Sufficiency}
 
 \begin{definition}

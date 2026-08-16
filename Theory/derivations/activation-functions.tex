@@ -1,0 +1,318 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Activation Function Derivatives:\\
+Every Nonlinearity in the Repository, Differentiated From Scratch}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+Backpropagation multiplies each layer's upstream gradient by the local
+derivative of its activation. This page derives every one of those
+local derivatives explicitly --- no step skipped --- citing the rules
+page (\texttt{rules.tex}) for the calculus. A recurring theme:
+the good activations have derivatives expressible \emph{in terms of
+their own outputs}, which is what makes the backward pass cheap ---
+the forward value is already cached.
+
+\section{Sigmoid}
+
+\begin{equation}
+  \sigma(x) = \frac{1}{1 + e^{-x}}.
+  \label{eq:sigmoid}
+\end{equation}
+
+\paragraph{Derivation.} Write $\sigma(x) = (1 + e^{-x})^{-1}$ and apply
+the chain rule twice (power rule on the outer function, then
+$\frac{d}{dx}e^{-x} = -e^{-x}$ on the inner):
+\begin{align*}
+  \sigma'(x)
+  &= -\,(1 + e^{-x})^{-2} \cdot \frac{d}{dx}\bigl(1 + e^{-x}\bigr)
+   = -\,(1 + e^{-x})^{-2} \cdot \bigl(-e^{-x}\bigr)
+   = \frac{e^{-x}}{(1 + e^{-x})^{2}}.
+\end{align*}
+Now factor into a product of two sigmoids:
+\begin{align*}
+  \frac{e^{-x}}{(1+e^{-x})^{2}}
+  &= \frac{1}{1+e^{-x}} \cdot \frac{e^{-x}}{1+e^{-x}}
+   = \sigma(x)\cdot\frac{(1 + e^{-x}) - 1}{1+e^{-x}}
+   = \sigma(x)\bigl(1 - \sigma(x)\bigr).
+\end{align*}
+\begin{equation}
+  \boxed{\;\sigma'(x) = \sigma(x)\,\bigl(1 - \sigma(x)\bigr)\;}
+  \label{eq:sigmoidprime}
+\end{equation}
+
+\begin{remark}[Reading \eqref{eq:sigmoidprime}]
+The derivative is the output times its complement --- a Bernoulli
+variance $p(1-p)$. It peaks at $\sigma'(0) = 1/4$ and decays
+exponentially in $|x|$: this $\le 1/4$ ceiling, compounded across
+layers, is the classical \emph{vanishing gradient} problem, and the
+reason sigmoid retired from hidden layers in favor of ReLU.
+Two more useful identities: $\sigma(-x) = 1 - \sigma(x)$, and by the
+inverse function rule the logit
+$\operatorname{logit}(p) = \ln\frac{p}{1-p}$ has derivative
+$\frac{1}{p(1-p)}$.
+\end{remark}
+
+\section{Hyperbolic tangent}
+
+\begin{equation}
+  \tanh(x) = \frac{e^{x} - e^{-x}}{e^{x} + e^{-x}}
+           = \frac{\sinh x}{\cosh x}.
+  \label{eq:tanh}
+\end{equation}
+
+\paragraph{Derivation.} Quotient rule with $f = \sinh$, $g = \cosh$,
+using $\sinh' = \cosh$, $\cosh' = \sinh$, and the identity
+$\cosh^2 - \sinh^2 = 1$:
+\begin{align*}
+  \tanh'(x)
+  = \frac{\cosh x \cdot \cosh x - \sinh x \cdot \sinh x}{\cosh^{2}x}
+  = \frac{\cosh^2 x - \sinh^2 x}{\cosh^{2}x}
+  = \frac{1}{\cosh^{2}x} = 1 - \frac{\sinh^2 x}{\cosh^2 x}.
+\end{align*}
+\begin{equation}
+  \boxed{\;\tanh'(x) = 1 - \tanh^{2}(x)\;}
+  \label{eq:tanhprime}
+\end{equation}
+
+\begin{remark}
+Again the derivative is a function of the output alone. Since
+$\tanh(x) = 2\sigma(2x) - 1$, tanh is a rescaled sigmoid; its
+derivative peaks at $\tanh'(0) = 1$, four times sigmoid's peak, and its
+outputs are zero-centered --- both reasons it trains better than
+sigmoid in classical (pre-ReLU) networks.
+\end{remark}
+
+\section{ReLU and its leaky variants}
+
+\begin{equation}
+  \mathrm{ReLU}(x) = \max(0, x)
+  = \begin{cases} x & x > 0\\ 0 & x \le 0. \end{cases}
+  \label{eq:relu}
+\end{equation}
+
+\paragraph{Derivation.} On each open half-line the function is affine,
+so differentiate piecewise:
+\begin{equation}
+  \mathrm{ReLU}'(x) =
+  \begin{cases}
+    1 & x > 0\\
+    0 & x < 0,
+  \end{cases}
+  \qquad
+  \partial\,\mathrm{ReLU}(0) = [0, 1].
+  \label{eq:reluprime}
+\end{equation}
+At $x = 0$ the two one-sided slopes ($0$ and $1$) disagree, so no
+derivative exists; ReLU is convex, so the subdifferential $[0,1]$
+(rules page) stands in, and frameworks pick the element $0$. The
+backward pass is a mask: gradients flow unchanged through active units
+and are killed at inactive ones --- no shrinking factor, hence no
+vanishing gradient on the active path, but also \emph{dead units} if a
+unit's input stays negative forever.
+
+\paragraph{Leaky ReLU / PReLU.} Replace the zero slope with
+$\alpha > 0$ (fixed for Leaky, learned for PReLU):
+\begin{equation}
+  f(x) = \begin{cases} x & x > 0\\ \alpha x & x \le 0 \end{cases}
+  \qquad\Longrightarrow\qquad
+  f'(x) = \begin{cases} 1 & x > 0\\ \alpha & x < 0, \end{cases}
+  \label{eq:leaky}
+\end{equation}
+and for PReLU the gradient with respect to the learned slope is
+$\partial f / \partial \alpha = x\,\mathbf{1}[x \le 0]$.
+
+\section{ELU}
+
+For $\alpha > 0$:
+\begin{equation}
+  \mathrm{ELU}(x) =
+  \begin{cases}
+    x & x > 0\\
+    \alpha\,(e^{x} - 1) & x \le 0.
+  \end{cases}
+  \label{eq:elu}
+\end{equation}
+
+\paragraph{Derivation.} The positive branch is the identity; on the
+negative branch, linearity and $\frac{d}{dx}e^x = e^x$ give
+$\alpha e^{x}$, which equals $\mathrm{ELU}(x) + \alpha$:
+\begin{equation}
+  \mathrm{ELU}'(x) =
+  \begin{cases}
+    1 & x > 0\\
+    \alpha e^{x} = \mathrm{ELU}(x) + \alpha & x \le 0.
+  \end{cases}
+  \label{eq:eluprime}
+\end{equation}
+At $x=0$ both branches give value $0$ and slope $1$
+($\alpha e^0 = \alpha$ only matches when $\alpha = 1$; for
+$\alpha \ne 1$ the derivative jumps from $\alpha$ to $1$). Unlike
+ReLU, saturating units still receive gradient $\alpha e^x > 0$.
+
+\section{Softplus}
+
+\begin{equation}
+  \zeta(x) = \ln\bigl(1 + e^{x}\bigr).
+  \label{eq:softplus}
+\end{equation}
+
+\paragraph{Derivation.} Log-derivative rule with $f(x) = 1 + e^{x}$:
+\begin{equation}
+  \zeta'(x) = \frac{e^{x}}{1 + e^{x}}
+  = \frac{1}{e^{-x} + 1}
+  \;\Longrightarrow\;
+  \boxed{\;\zeta'(x) = \sigma(x)\;}
+  \label{eq:softplusprime}
+\end{equation}
+Softplus is the antiderivative of the sigmoid --- the smooth ReLU
+($\zeta(x) \to \max(0,x)$ pointwise as its temperature sharpens). This
+pairing (softplus, sigmoid) is the same (loss, gradient) pairing that
+makes the logistic loss's gradient a sigmoid on the losses page.
+
+\section{SiLU / Swish}
+
+\begin{equation}
+  \mathrm{silu}(x) = x\,\sigma(x).
+  \label{eq:silu}
+\end{equation}
+
+\paragraph{Derivation.} Product rule with
+$\sigma' = \sigma(1-\sigma)$ from \eqref{eq:sigmoidprime}:
+\begin{align*}
+  \mathrm{silu}'(x)
+  = \sigma(x) + x\,\sigma(x)\bigl(1 - \sigma(x)\bigr)
+  = \sigma(x)\bigl(1 + x - x\,\sigma(x)\bigr).
+\end{align*}
+\begin{equation}
+  \boxed{\;\mathrm{silu}'(x)
+  = \sigma(x) + x\,\sigma(x)\bigl(1-\sigma(x)\bigr)
+  = \mathrm{silu}(x) + \sigma(x)\bigl(1 - \mathrm{silu}(x)\bigr)\;}
+  \label{eq:siluprime}
+\end{equation}
+(The second form is output-only, again.) SiLU is smooth, non-monotone
+(a small dip for $x \approx -1.28$), and its derivative can be
+slightly negative --- gradients can flow ``backwards'' through mildly
+negative inputs, unlike ReLU's hard zero.
+
+\section{GELU}
+
+With $\Phi$ the standard normal CDF and
+$\varphi(x) = \frac{1}{\sqrt{2\pi}}e^{-x^2/2}$ its density:
+\begin{equation}
+  \mathrm{GELU}(x) = x\,\Phi(x).
+  \label{eq:gelu}
+\end{equation}
+
+\paragraph{Derivation.} Product rule, using the fundamental theorem of
+calculus for $\Phi' = \varphi$:
+\begin{equation}
+  \boxed{\;\mathrm{GELU}'(x) = \Phi(x) + x\,\varphi(x)\;}
+  \label{eq:geluprime}
+\end{equation}
+GELU is ``expected ReLU under Gaussian gating'':
+$x \cdot \Pr(Z \le x)$ for $Z \sim \mathcal{N}(0,1)$. The common
+tanh approximation
+$\mathrm{GELU}(x) \approx \tfrac{x}{2}\bigl(1 +
+\tanh\bigl[\sqrt{2/\pi}\,(x + 0.044715\,x^{3})\bigr]\bigr)$
+differentiates mechanically by the product and chain rules with
+\eqref{eq:tanhprime}; the transformer notes (\texttt{llm/}) use the
+exact form.
+
+\section{Softmax: the Jacobian}
+
+Softmax maps logits $z \in \mathbb{R}^{K}$ to a distribution:
+\begin{equation}
+  s_i(z) = \frac{e^{z_i}}{\sum_{k=1}^{K} e^{z_k}}.
+  \label{eq:softmax}
+\end{equation}
+It is vector-valued, so its derivative is a $K \times K$ Jacobian
+$\partial s_i / \partial z_j$, with two cases.
+
+\paragraph{Case $i = j$.} Quotient rule with $f = e^{z_i}$,
+$g = \Sigma := \sum_k e^{z_k}$, noting
+$\partial \Sigma / \partial z_i = e^{z_i}$:
+\begin{align*}
+  \frac{\partial s_i}{\partial z_i}
+  = \frac{e^{z_i}\,\Sigma - e^{z_i}\,e^{z_i}}{\Sigma^{2}}
+  = \frac{e^{z_i}}{\Sigma}\cdot\frac{\Sigma - e^{z_i}}{\Sigma}
+  = s_i\,(1 - s_i).
+\end{align*}
+
+\paragraph{Case $i \ne j$.} Now the numerator $e^{z_i}$ is a constant
+with respect to $z_j$, so only the denominator moves; by the chain rule
+on $\Sigma^{-1}$:
+\begin{align*}
+  \frac{\partial s_i}{\partial z_j}
+  = e^{z_i} \cdot \Bigl(-\Sigma^{-2}\Bigr)\cdot e^{z_j}
+  = -\,\frac{e^{z_i}}{\Sigma}\cdot\frac{e^{z_j}}{\Sigma}
+  = -\,s_i\,s_j.
+\end{align*}
+
+\paragraph{Both cases at once.} With the Kronecker delta
+$\delta_{ij}$:
+\begin{equation}
+  \boxed{\;\frac{\partial s_i}{\partial z_j}
+  = s_i\,\bigl(\delta_{ij} - s_j\bigr)\;}
+  \qquad\text{i.e.}\qquad
+  J_s = \operatorname{diag}(s) - s\,s^{\top}.
+  \label{eq:softmaxjac}
+\end{equation}
+
+\begin{remark}[Reading \eqref{eq:softmaxjac}]
+The diagonal entries $s_i(1-s_i)$ are exactly sigmoid's
+\eqref{eq:sigmoidprime} --- softmax with $K=2$ \emph{is} a sigmoid of
+the logit difference. The off-diagonal $-s_i s_j$ encodes competition:
+raising one logit necessarily lowers every other probability. The
+Jacobian is symmetric, positive semidefinite, and singular ---
+$J_s \mathbf{1} = 0$, because shifting all logits by a constant leaves
+softmax unchanged (the invariance the log-sum-exp trick exploits for
+stability). In practice one never materializes $J_s$: the losses page
+shows that composing it with cross-entropy collapses the whole product
+to $s - y$.
+\end{remark}
+
+\section{Summary table}
+
+Derivatives in terms of the \emph{output} $a = f(x)$ where possible:
+
+\begin{center}
+\begin{tabular}{llll}
+\toprule
+Activation & $f(x)$ & $f'$ & Range of $f'$\\
+\midrule
+Sigmoid & $1/(1+e^{-x})$ & $a(1-a)$ & $(0, \tfrac14]$\\
+Tanh & $\tanh x$ & $1 - a^2$ & $(0, 1]$\\
+ReLU & $\max(0,x)$ & $\mathbf{1}[x>0]$ & $\{0, 1\}$\\
+Leaky ReLU & $\max(\alpha x, x)$ & $\alpha$ or $1$ & $\{\alpha, 1\}$\\
+ELU & eq.\ \eqref{eq:elu} & $1$ or $a + \alpha$ & $(0, 1]$\\
+Softplus & $\ln(1+e^x)$ & $\sigma(x)$ & $(0,1)$\\
+SiLU & $x\,\sigma(x)$ & $a + \sigma(x)(1-a)$ & $\approx(-0.09, 1.1)$\\
+GELU & $x\,\Phi(x)$ & $\Phi(x) + x\varphi(x)$ & $\approx(-0.13, 1.13)$\\
+Softmax & eq.\ \eqref{eq:softmax} & $s_i(\delta_{ij} - s_j)$ &
+Jacobian\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\noindent
+The pattern to remember: sigmoid, tanh, ELU, and SiLU all have
+output-expressible derivatives (cache the forward value, get the
+backward almost free); ReLU's derivative is a mask; softmax's is a
+rank-one correction of a diagonal. The loss-functions page composes
+these with the loss derivatives to produce the clean gradients
+($\sigma(z) - y$, $s - y$) that make logistic and softmax regression
+train so gracefully.
+
+\end{document}

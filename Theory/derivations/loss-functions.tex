@@ -1,0 +1,273 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{Loss Function Derivatives:\\
+Every Gradient the Repository Descends, Derived From Scratch}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+The losses page (\texttt{Theory/losses}) catalogues what each loss
+\emph{remembers}; this page computes what each loss \emph{does} during
+training --- its gradient, derived step by step with the rules page
+(\texttt{rules.tex}) as the toolkit and the activation-functions page
+supplying $\sigma'$ and the softmax Jacobian. The punchline, reached
+three separate times, is the same beautiful formula:
+\emph{gradient = prediction $-$ target}.
+
+\section{Squared error}
+
+Per example, with prediction $\hat y$ and target $y$ (the $\tfrac12$ is
+cosmetic, chosen to cancel the exponent):
+\begin{equation}
+  \ell(\hat y) = \tfrac{1}{2}\,(\hat y - y)^{2}.
+  \label{eq:mse}
+\end{equation}
+
+\paragraph{Derivation.} Chain rule with outer $u \mapsto \tfrac12 u^2$
+(power rule) and inner $u = \hat y - y$ (derivative $1$):
+\begin{equation}
+  \boxed{\;\frac{d\ell}{d\hat y} = \hat y - y\;}
+  \label{eq:mseprime}
+\end{equation}
+Prediction minus target --- the archetype. For a linear model
+$\hat y = w^{\top}x + b$, one more chain-rule step gives
+$\nabla_w \ell = (\hat y - y)\,x$ and
+$\partial \ell/\partial b = \hat y - y$: the residual, redistributed
+along the input. Summed over data this is the normal-equations gradient
+of the linear-regression note (rules page, eq.\ for
+$\nabla \lVert y - Xw \rVert^2$).
+
+\section{Absolute error and Huber}
+
+\begin{equation}
+  \ell_{\mathrm{abs}}(\hat y) = |\hat y - y|
+  \qquad\Longrightarrow\qquad
+  \frac{d\ell_{\mathrm{abs}}}{d\hat y}
+  = \operatorname{sign}(\hat y - y),
+  \quad
+  \partial \ell_{\mathrm{abs}}\big|_{\hat y = y} = [-1, 1].
+  \label{eq:maeprime}
+\end{equation}
+Piecewise: for $\hat y > y$ the loss is $\hat y - y$ with slope $+1$;
+for $\hat y < y$ it is $y - \hat y$ with slope $-1$; at the kink the
+subdifferential $[-1,1]$ applies (rules page). The gradient's
+\emph{magnitude never exceeds 1} regardless of the residual --- that
+bounded pull is the robustness of the median, in gradient form.
+
+\paragraph{Huber.} With residual $r = \hat y - y$ and threshold
+$\delta$:
+\begin{equation}
+  \ell_{\delta}(r) =
+  \begin{cases}
+    \tfrac12 r^{2} & |r| \le \delta\\[2pt]
+    \delta\bigl(|r| - \tfrac{\delta}{2}\bigr) & |r| > \delta
+  \end{cases}
+  \qquad\Longrightarrow\qquad
+  \frac{d\ell_{\delta}}{dr} =
+  \begin{cases}
+    r & |r| \le \delta\\[2pt]
+    \delta\operatorname{sign}(r) & |r| > \delta.
+  \end{cases}
+  \label{eq:huberprime}
+\end{equation}
+Each branch differentiates by the rules above; at $|r| = \delta$ the
+two branches agree ($r = \pm\delta$ vs.\
+$\delta\operatorname{sign}(r) = \pm\delta$), so the derivative is
+continuous --- Huber is $C^1$ by construction: it is squared error's
+gradient, \emph{clipped} at $\pm\delta$. (Gradient clipping in deep
+learning is exactly a Huberization applied after the fact.)
+
+\section{Binary cross-entropy}
+
+With label $y \in \{0,1\}$ and predicted probability $p \in (0,1)$:
+\begin{equation}
+  \ell(p) = -\,y\ln p - (1-y)\ln(1-p).
+  \label{eq:bce}
+\end{equation}
+
+\paragraph{Derivative with respect to $p$.} Linearity plus the
+log-derivative rule on each term
+($\frac{d}{dp}\ln p = \frac1p$;
+$\frac{d}{dp}\ln(1-p) = \frac{-1}{1-p}$ by the chain rule):
+\begin{equation}
+  \frac{d\ell}{dp}
+  = -\frac{y}{p} + \frac{1-y}{1-p}
+  = \frac{-y(1-p) + (1-y)p}{p(1-p)}
+  = \frac{p - y}{p\,(1-p)}.
+  \label{eq:bceprimep}
+\end{equation}
+Already ``prediction minus target,'' but divided by the Bernoulli
+variance $p(1-p)$ --- which blows up as $p \to 0$ or $1$. Training on
+$p$ directly would be numerically vicious. The cure is to differentiate
+with respect to the \emph{logit} instead.
+
+\paragraph{Derivative with respect to the logit $z$, where
+$p = \sigma(z)$.} Chain rule, composing \eqref{eq:bceprimep} with
+$\sigma'(z) = \sigma(z)(1 - \sigma(z)) = p(1-p)$ from the
+activation-functions page:
+\begin{align*}
+  \frac{d\ell}{dz}
+  = \frac{d\ell}{dp}\cdot\frac{dp}{dz}
+  = \frac{p - y}{p(1-p)} \cdot p(1-p)
+  = p - y.
+\end{align*}
+\begin{equation}
+  \boxed{\;\frac{d\ell}{dz} = \sigma(z) - y\;}
+  \label{eq:bceprimez}
+\end{equation}
+The Bernoulli variance cancels \emph{exactly}. This is not luck: the
+sigmoid is the canonical link of the Bernoulli exponential family, and
+for canonical links the NLL gradient in the natural parameter is always
+mean minus observation. It is why logistic regression's gradient
+(logistic-regression note) looks identical to linear regression's, and
+why \texttt{BCEWithLogitsLoss} exists: computing
+\eqref{eq:bceprimez} directly never forms the unstable quotient
+\eqref{eq:bceprimep}.
+
+\section{Categorical cross-entropy through softmax}
+
+Labels one-hot $y \in \{0,1\}^{K}$ (with $\sum_k y_k = 1$), logits
+$z \in \mathbb{R}^{K}$, probabilities $s = \operatorname{softmax}(z)$:
+\begin{equation}
+  \ell(z) = -\sum_{k=1}^{K} y_k \ln s_k(z) = -\ln s_c(z)
+  \quad\text{for the true class } c.
+  \label{eq:ce}
+\end{equation}
+
+\paragraph{Derivation.} Chain rule through the softmax Jacobian
+$\partial s_i/\partial z_j = s_i(\delta_{ij} - s_j)$
+(activation-functions page), with the log-derivative rule on each
+$\ln s_k$:
+\begin{align*}
+  \frac{\partial \ell}{\partial z_j}
+  = -\sum_{k} \frac{y_k}{s_k}\cdot\frac{\partial s_k}{\partial z_j}
+  = -\sum_{k} \frac{y_k}{s_k}\; s_k\,(\delta_{kj} - s_j)
+  = -\sum_{k} y_k\,(\delta_{kj} - s_j)
+  = -\,y_j + s_j \sum_{k} y_k .
+\end{align*}
+Since $\sum_k y_k = 1$:
+\begin{equation}
+  \boxed{\;\nabla_z\,\ell = s - y\;}
+  \label{eq:ceprime}
+\end{equation}
+Prediction minus target, for the third time --- softmax is the
+canonical link of the categorical family, so the same
+exponential-family cancellation fires. Note what \emph{didn't} happen:
+we never materialized the $K \times K$ Jacobian; the $1/s_k$ from the
+log and the $s_k$ from the Jacobian annihilate. This collapse is why
+every framework fuses softmax and cross-entropy into one op
+(\texttt{CrossEntropyLoss} in the softmax-regression and
+\texttt{llm/} notes): the fused gradient \eqref{eq:ceprime} is stable
+where the two-step computation is not. The derivation holds verbatim
+for soft labels ($y$ any distribution), which is the label-smoothing
+and distillation case.
+
+\section{KL divergence}
+
+For a fixed target distribution $q$ and model $s(z)$,
+$D_{\mathrm{KL}}(q\,\Vert\,s) = \sum_k q_k \ln\frac{q_k}{s_k}
+= \underbrace{\textstyle\sum_k q_k \ln q_k}_{\text{const in } z}
+- \sum_k q_k \ln s_k$. The variable part is cross-entropy with soft
+labels $q$, so by \eqref{eq:ceprime}:
+\begin{equation}
+  \nabla_z\, D_{\mathrm{KL}}\bigl(q \,\Vert\, s(z)\bigr) = s - q .
+  \label{eq:klprime}
+\end{equation}
+Minimizing KL to a target and minimizing cross-entropy against it are
+the same descent --- the information-theory note's identity
+$H(q, s) = H(q) + D_{\mathrm{KL}}(q\Vert s)$, now in gradient form.
+
+\section{Margin losses: hinge, perceptron, logistic, exponential}
+
+Binary labels $y \in \{-1, +1\}$, score $f$, margin $m = y f$. Each
+loss is $\ell(m)$; by the chain rule
+$\frac{\partial \ell}{\partial f} = \ell'(m)\, y$, so it suffices to
+differentiate in $m$.
+
+\paragraph{Hinge.} $\ell(m) = \max(0, 1 - m)$. Piecewise: slope $-1$
+where $m < 1$, slope $0$ where $m > 1$, subdifferential $[-1, 0]$ at
+the kink $m = 1$:
+\begin{equation}
+  \frac{d\ell}{dm} =
+  \begin{cases}
+    -1 & m < 1\\
+    0 & m > 1,
+  \end{cases}
+  \qquad\Longrightarrow\qquad
+  \nabla_w \ell = -\,y\,x\;\mathbf{1}[\,y\,w^{\top}x < 1\,]
+  \label{eq:hingeprime}
+\end{equation}
+for a linear scorer $f = w^{\top}x$. The gradient is \emph{all or
+nothing}: examples with comfortable margin contribute exactly zero ---
+this hard zero is where support-vector sparsity comes from (svm note).
+The perceptron loss $\max(0, -m)$ differentiates identically with the
+kink at $0$: update $y\,x$ on mistakes, nothing otherwise --- the
+perceptron algorithm \emph{is} subgradient descent on this loss.
+
+\paragraph{Logistic.} $\ell(m) = \ln(1 + e^{-m})$. Log-derivative rule
+with $f(m) = 1 + e^{-m}$, then multiply top and bottom by $e^{m}$:
+\begin{equation}
+  \frac{d\ell}{dm}
+  = \frac{-e^{-m}}{1 + e^{-m}}
+  = -\,\frac{1}{e^{m} + 1}
+  = -\,\sigma(-m).
+  \label{eq:logisticprime}
+\end{equation}
+A \emph{soft} version of hinge's indicator: instead of switching off at
+$m = 1$, the pull decays smoothly as $\sigma(-m) \to 0$ for
+confidently-correct examples --- consistent with
+\eqref{eq:bceprimez}, since this is the same loss in $\pm 1$
+convention. Every example keeps a nonzero gradient; no sparsity, full
+calibration.
+
+\paragraph{Exponential.} $\ell(m) = e^{-m}$, so
+$\ell'(m) = -e^{-m}$: the pull on a misclassified example grows
+\emph{exponentially} with how wrong it is. That unbounded appetite for
+hard examples is AdaBoost's reweighting rule --- and its notorious
+outlier sensitivity --- in one line.
+
+\section{Summary table}
+
+Gradients with respect to the quantity actually optimized:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Loss & Gradient & Shape of the pull\\
+\midrule
+Squared ($\tfrac12 r^2$) & $\hat y - y$ & linear in residual\\
+Absolute & $\operatorname{sign}(\hat y - y)$ & constant magnitude\\
+Huber & $r$ clipped to $[-\delta, \delta]$ & linear, then capped\\
+BCE on logit & $\sigma(z) - y$ & bounded by $1$\\
+Softmax CE on logits & $s - y$ & bounded, per class\\
+KL to target $q$ & $s - q$ & same as CE\\
+Hinge & $-y\,\mathbf{1}[m < 1]$ & on/off\\
+Perceptron & $-y\,\mathbf{1}[m < 0]$ & on/off at $0$\\
+Logistic (margin form) & $-y\,\sigma(-m)$ & smooth on/off\\
+Exponential & $-y\,e^{-m}$ & unbounded\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\medskip
+\noindent
+Three families, one moral. The probabilistic losses (squared, BCE,
+softmax CE) all reduce to \emph{prediction minus target} in the right
+parameterization --- the exponential-family/canonical-link
+cancellation, witnessed three times above. The robust losses (absolute,
+Huber) are the same pull with its magnitude capped. The margin losses
+differ only in how fast the pull switches off as the margin grows:
+never (exponential), smoothly (logistic), abruptly at $1$ (hinge), or
+at $0$ (perceptron) --- and that switch-off schedule is precisely what
+decides calibration versus sparsity on the losses page.
+
+\end{document}

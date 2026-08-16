@@ -1,6 +1,7 @@
 \documentclass[11pt]{article}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage[margin=1.1in]{geometry}
+\usepackage{graphicx}
 
 \newtheorem{theorem}{Theorem}
 \newtheorem{definition}{Definition}
@@ -21,10 +22,161 @@ wrong, and what replaces it under constraints (Lagrange, KKT).
 \texttt{optimization\_demo.py} demonstrates the failure modes and checks
 the constrained solutions numerically.
 
+\section{The objects: derivative, gradient, subgradient, Hessian}
+
+Four objects carry all the local information optimization ever uses ---
+the first two describe slope, the third rescues slope at kinks, the
+fourth describes curvature.
+
+\begin{definition}[Derivative --- three equivalent forms]
+For $f:\mathbb{R}\to\mathbb{R}$, when the limit exists,
+\begin{equation}
+  f'(x)
+  \;=\; \underbrace{\lim_{h\to 0}\frac{f(x+h)-f(x)}{h}}_{\text{(i)
+  difference quotient}}
+  \;=\; \underbrace{\lim_{y\to x}\frac{f(y)-f(x)}{y-x}}_{\text{(ii)
+  two-point form}},
+  \label{eq:derivative}
+\end{equation}
+and (iii) the \emph{linear-approximation form}: $f'(x)$ is the unique
+number $a$ with
+\begin{equation}
+  f(x+h) \;=\; f(x) + a\,h + o(h)
+  \qquad (\text{error} \to 0 \text{ faster than } h).
+  \label{eq:derivlittleo}
+\end{equation}
+(i) and (ii) are the same statement under $y = x+h$; (iii) is the one
+that \emph{generalizes} --- replace $a\,h$ by $\nabla f(x)^\top h$ and
+it defines the gradient, by $J\,h$ and it defines the Jacobian. Rules
+for computing are the derivations note (\texttt{rules.tex}); this page
+needs what it means: the instantaneous trade rate between moving and
+gaining. Figure~\ref{fig:deriv} (left) draws definition (i): secant
+slopes collapsing onto the tangent as $h \to 0$.
+\end{definition}
+
+\begin{remark}[One-sided and symmetric quotients]
+Two relatives of \eqref{eq:derivative} matter. The \emph{one-sided}
+derivatives $f'(x^+)$ and $f'(x^-)$ take the limit through $h>0$ or
+$h<0$ only; the derivative exists iff both exist and agree, and at a
+kink they disagree ($|x|$ at $0$: $+1$ vs $-1$) --- exactly the gap the
+subgradient below will fill. The \emph{symmetric} (central) quotient,
+\begin{equation}
+  \frac{f(x+h)-f(x-h)}{2h}
+  \;=\; \tfrac12\Bigl[\text{forward} + \text{backward}\Bigr],
+  \label{eq:symmetric}
+\end{equation}
+is \emph{not} an equivalent definition --- it is better and worse at
+once. Better: when $f'(x)$ exists, \eqref{eq:symmetric} converges to it
+with error $O(h^2)$ instead of the forward quotient's $O(h)$ (odd-order
+terms cancel), which is why numerical gradient checks use central
+differences. Worse: it can converge where no derivative exists --- on
+$|x|$ at $0$ it returns $0$ for \emph{every} $h$ (fig.~\ref{fig:deriv},
+right), averaging the $\pm1$ slopes into an answer that describes
+nothing about the kink. Existence of the symmetric limit does not
+imply differentiability.
+\end{remark}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{fig_derivative.pdf}
+  \caption{Left: the derivative as the limit of secant slopes
+    (definition (i)). Right: the symmetric quotient's failure mode ---
+    on $|x|$ at $0$ it converges to $0$ although no derivative exists
+    (\texttt{optimization\_figures.py}).}
+  \label{fig:deriv}
+\end{figure}
+
+\begin{definition}[Gradient]
+For $f:\mathbb{R}^n\to\mathbb{R}$, the gradient collects the partial
+derivatives,
+\begin{equation}
+  \nabla f(x) =
+  \Bigl(\tfrac{\partial f}{\partial x_1},\dots,
+        \tfrac{\partial f}{\partial x_n}\Bigr)^{\!\top},
+  \qquad
+  f(x+h) \approx f(x) + \nabla f(x)^\top h .
+  \label{eq:gradient}
+\end{equation}
+Two geometric facts used constantly: $\nabla f(x)$ points in the
+direction of \emph{steepest ascent} (so $-\nabla f$ is gradient
+descent's direction), and $\nabla f$ is \emph{perpendicular to the
+level set of $f$ through $x$} --- the set
+$\{y : f(y) = f(x)\}$ of all points sharing $x$'s value (a contour
+line): for any direction $d$ tangent to it, $\nabla f(x)^\top d = 0$,
+since moving along the contour changes $f$ by nothing to first order.
+This perpendicularity is the fact the Lagrange section runs on.
+\end{definition}
+
+\begin{definition}[Subgradient]
+Where convex $f$ has a kink, no single slope exists, but many lines
+touch from below: $g$ is a \emph{subgradient} at $x$ if
+\begin{equation}
+  f(y) \;\ge\; f(x) + g^\top (y - x) \qquad \text{for all } y,
+  \label{eq:subgradient}
+\end{equation}
+and the set of all such $g$ is the subdifferential $\partial f(x)$.
+At differentiable points $\partial f(x) = \{\nabla f(x)\}$ --- exactly
+one line touches from below, the tangent (fig.~\ref{fig:subgrad},
+left). At a kink a whole fan touches: for convex $f$ on $\mathbb{R}$,
+\begin{equation}
+  \partial f(x) = \bigl[\,f'(x^-),\; f'(x^+)\,\bigr],
+  \label{eq:subdiffinterval}
+\end{equation}
+every slope between the one-sided derivatives --- for $|x|$ at $0$,
+$\partial f(0) = [-1,1]$ (fig.~\ref{fig:subgrad}, right; the extreme
+members $\pm1$ are the arms of $|x|$ themselves). Optimality becomes
+$0 \in \partial f(x)$ --- the flat line is among the touching lines.
+This is the object that makes ReLU, hinge, and $\ell_1$ losses
+optimizable at all.
+\end{definition}
+
+\begin{figure}[h]
+  \centering
+  \includegraphics[width=\linewidth]{fig_subgradient.pdf}
+  \caption{Subgradients as lines touching from below: a single tangent
+    at a smooth point, the fan $[-1,1]$ at the kink of $|x|$
+    (\texttt{optimization\_figures.py}).}
+  \label{fig:subgrad}
+\end{figure}
+
+\begin{definition}[Hessian]
+The matrix of second partials,
+\begin{equation}
+  \bigl(\nabla^2 f(x)\bigr)_{ij}
+  = \frac{\partial^2 f}{\partial x_i\,\partial x_j},
+  \qquad
+  f(x+h) \approx f(x) + \nabla f(x)^\top h
+  + \tfrac12\, h^\top \nabla^2 f(x)\, h ,
+  \label{eq:hessian}
+\end{equation}
+symmetric under mild regularity (Schwarz). The gradient says which way
+is up; the Hessian says how the slope itself changes --- curvature. Its
+definiteness is the local shape: $\nabla^2 f \succ 0$ bowl,
+$\prec 0$ dome, indefinite saddle; its eigenvalues are the curvatures
+along its eigenvectors, and their spread is the conditioning that
+Section 3's $\kappa$ quantifies.
+\end{definition}
+
 \section{Unconstrained problems: stationarity}
 
 Maximization is minimization of the negation, so we speak of
 $\min_\theta f(\theta)$ throughout.
+
+\begin{definition}[Stationary point]
+$\theta^\ast$ is \emph{stationary} for differentiable $f$ if
+$\nabla f(\theta^\ast) = 0$.
+\end{definition}
+
+The meaning, in one breath: at a stationary point the linear
+approximation \eqref{eq:gradient} is \emph{flat} --- to first order,
+moving in any direction changes nothing, the function is momentarily
+standing still (hence the name). No direction of first-order
+improvement exists, which is why every interior optimum must be
+stationary; but ``standing still'' is symmetric --- valley floors,
+hilltops, and mountain passes all qualify --- so stationarity alone
+cannot tell a minimum from a maximum from a saddle. That verdict
+belongs to the curvature: the Hessian's definiteness
+\eqref{eq:hessian} classifies the stationary point.
 
 \begin{theorem}[First-order necessary condition, Fermat]
 If $\theta^\ast$ is a local minimizer of differentiable $f$ and lies in
@@ -42,7 +194,7 @@ Necessary --- not sufficient. The catalogue of failures:
     Second-order check: $\nabla^2 f \succ 0$ at a stationary point
     $\Rightarrow$ local min; indefinite $\Rightarrow$ saddle.
   \item \textbf{Boundary optima.} On a constrained domain the minimum can
-    sit on the boundary with $\nabla f \ne 0$ (Section 3 handles this
+    sit on the boundary with $\nabla f \ne 0$ (Sections 4--5 handle this
     properly).
   \item \textbf{Non-differentiability.} $f(x)=|x|$ minimizes at $0$ with
     no derivative there; subgradients ($0 \in \partial f$) generalize
@@ -102,11 +254,71 @@ $\nabla f$ must be normal to it:
 the stationarity of the \emph{Lagrangian}
 $\mathcal{L}(\theta,\lambda) = f(\theta) + \lambda h(\theta)$ in both
 arguments. The multiplier is a price: $\lambda = -\,\partial
-f^\ast/\partial c$ for the perturbed constraint $h = c$. Worked instance
-(script, panel 2): $\min x^2+y^2$ s.t.\ $x+y=1$ gives
-$(x,y) = (\tfrac12,\tfrac12)$, $\lambda = -1$ --- and the multinoulli MLE
-$\hat p_j = n_j/n$ of the distributions page is exactly this machinery
-applied to $\sum_j p_j = 1$.
+f^\ast/\partial c$ for the perturbed constraint $h = c$.
+
+\subsection{Walkthrough: the nearest point on a line}
+
+The machinery, executed slowly once (script, panel 2):
+\begin{equation*}
+  \min_{x,y}\;\; f(x,y) = x^2 + y^2
+  \qquad\text{subject to}\qquad
+  h(x,y) = x + y - 1 = 0
+\end{equation*}
+--- geometrically, the point of the line $x+y=1$ closest to the origin.
+
+\paragraph{Step 0: why plain stationarity fails.}
+$\nabla f = (2x, 2y)^\top = 0$ only at the origin --- which violates
+the constraint. The unconstrained answer is infeasible, so the optimum
+sits on the constraint line at a point where $\nabla f \ne 0$, and
+Fermat's rule is replaced by \eqref{eq:lagrange}.
+
+\paragraph{Step 1: stationarity in $(x,y)$ --- the shape.}
+With $\mathcal{L} = x^2 + y^2 + \lambda(x + y - 1)$:
+\begin{equation*}
+  \frac{\partial \mathcal{L}}{\partial x} = 2x + \lambda = 0,
+  \qquad
+  \frac{\partial \mathcal{L}}{\partial y} = 2y + \lambda = 0
+  \qquad\Longrightarrow\qquad
+  x = y = -\frac{\lambda}{2}.
+\end{equation*}
+As always, the gradient equations deliver the solution's \emph{shape}
+--- here, symmetry: $x = y$, both expressed through the one unknown
+multiplier. (The shape is the geometry of \eqref{eq:lagrange}:
+$\nabla f = (2x,2y)$ must be parallel to $\nabla h = (1,1)$, which
+forces $x = y$.)
+
+\paragraph{Step 2: the constraint fixes the scale.}
+One equation remains unused --- the constraint itself. Substitute the
+shape into it:
+\begin{equation*}
+  x + y = -\frac{\lambda}{2} - \frac{\lambda}{2} = -\lambda = 1
+  \qquad\Longrightarrow\qquad
+  \lambda = -1 .
+\end{equation*}
+
+\paragraph{Step 3: back-substitute.}
+\begin{equation}
+  (x^\ast, y^\ast) = \Bigl(\tfrac12, \tfrac12\Bigr),
+  \qquad \lambda = -1 .
+  \label{eq:lagexample}
+\end{equation}
+The perpendicular foot from the origin onto the line --- as the
+geometry demanded: at $(\tfrac12,\tfrac12)$ the level circle of $f$ is
+tangent to the constraint line, which \emph{is} the parallel-gradients
+condition drawn.
+
+\paragraph{The price check.} Perturb the constraint to $x + y = c$: by
+the same steps $f^\ast(c) = c^2/2$, so
+$-\partial f^\ast/\partial c = -c = -1$ at $c=1$ --- the multiplier's
+value, confirming the shadow-price reading. Division of labor to
+remember: \textbf{the gradient equations pin the direction of the
+answer, the constraint pins its scale, and $\lambda$ is the exchange
+rate between objective and constraint} --- solved for, used, discarded.
+
+The multinoulli MLE $\hat p_j = n_j/n$ of the distributions page is this
+same machinery applied to $\ell(p) = \sum_j n_j \ln p_j$ under
+$\sum_j p_j = 1$ ($\lambda = n$); that instance is walked through at the
+same pace in \texttt{lagrange-walkthrough.tex}, next to this note.
 
 \section{Constraints II: inequalities and KKT}
 

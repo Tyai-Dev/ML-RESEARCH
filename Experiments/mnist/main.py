@@ -25,6 +25,7 @@ Run me with F5. Theory: softmax-regression.tex; metrics:
 Theory/evaluation.
 """
 
+# %%
 import sys
 from pathlib import Path
 
@@ -35,10 +36,12 @@ import torch.nn as nn
 from sklearn.metrics import classification_report, confusion_matrix
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "datasets"))
-from mnist import load_mnist                      # noqa: E402
+from mnist import load_mnist  # noqa: E402
 
-from models import SoftmaxRegression              # noqa: E402
-from training import SEED, evaluate, fit          # noqa: E402
+from models import SoftmaxRegression  # noqa: E402
+from training import SEED, evaluate, fit  # noqa: E402
+
+# %%
 
 # ----------------------------------------------------------------------
 # 1. LOAD
@@ -58,8 +61,10 @@ X_val = to_t(X[val_idx], torch.float32)
 y_val = to_t(y[val_idx], torch.long)
 X_test = to_t(X_test_np, torch.float32)
 y_test = to_t(y_test_np, torch.long)
-print(f"1. LOAD   train {len(X_train):,} / val {len(X_val):,} / "
-      f"test {len(X_test):,}   (28x28 grayscale, flattened to 784)")
+print(
+    f"1. LOAD   train {len(X_train):,} / val {len(X_val):,} / "
+    f"test {len(X_test):,}   (28x28 grayscale, flattened to 784)"
+)
 
 # ----------------------------------------------------------------------
 # 2. LOOK
@@ -76,16 +81,17 @@ for ax, i in zip(axes.ravel(), rng.choice(train_idx, 16, replace=False)):
     ax.set_xticks([]), ax.set_yticks([])
 fig_ex.suptitle("2. LOOK — sixteen training examples", fontsize=11)
 fig_ex.tight_layout()
-
+# %%
 # ----------------------------------------------------------------------
 # 3. TRAIN
 # ----------------------------------------------------------------------
 print("\n3. TRAIN")
 model = SoftmaxRegression().to(DEVICE)
-loss_fn = nn.CrossEntropyLoss()                  # the multinoulli NLL
-history = fit(model, loss_fn, X_train, y_train, X_val, y_val,
-              epochs=12, batch=128, lr=1e-3)
-
+loss_fn = nn.CrossEntropyLoss()  # the multinoulli NLL
+history = fit(
+    model, loss_fn, X_train, y_train, X_val, y_val, epochs=12, batch=128, lr=1e-3
+)
+# %%
 # ----------------------------------------------------------------------
 # 4. EXAMINE — the test set, touched once
 # ----------------------------------------------------------------------
@@ -98,8 +104,11 @@ with torch.no_grad():
 y_pred = P.argmax(axis=1)
 y_true = y_test_np
 
-print(classification_report(y_true, y_pred, digits=3,
-                            target_names=[str(d) for d in range(10)]))
+print(
+    classification_report(
+        y_true, y_pred, digits=3, target_names=[str(d) for d in range(10)]
+    )
+)
 
 # the confusion matrix, and where the model actually bleeds
 C = confusion_matrix(y_true, y_pred)
@@ -108,26 +117,31 @@ print("      " + "".join(f"{d:>6}" for d in range(10)))
 for d in range(10):
     print(f"  {d}  " + "".join(f"{C[d, j]:>6}" for j in range(10)))
 off = C - np.diag(np.diag(C))
-pairs = np.dstack(np.unravel_index(np.argsort(off, axis=None)[::-1],
-                                   C.shape))[0][:5]
+pairs = np.dstack(np.unravel_index(np.argsort(off, axis=None)[::-1], C.shape))[0][:5]
 print("\nworst confusions:")
 for t, p in pairs:
-    print(f"   true {t} read as {p}: {C[t, p]:>3} times "
-          f"({C[t, p] / C[t].sum():.1%} of all {t}s)")
+    print(
+        f"   true {t} read as {p}: {C[t, p]:>3} times "
+        f"({C[t, p] / C[t].sum():.1%} of all {t}s)"
+    )
 
 # does it know when it doesn't know?
 conf = P.max(axis=1)
 right = y_pred == y_true
-print(f"\nconfidence: mean max-prob when correct {conf[right].mean():.3f}"
-      f" vs when wrong {conf[~right].mean():.3f}")
+print(
+    f"\nconfidence: mean max-prob when correct {conf[right].mean():.3f}"
+    f" vs when wrong {conf[~right].mean():.3f}"
+)
 bins = [0.5, 0.7, 0.9, 0.99, 1.001]
 print("calibration (predicted confidence vs actual accuracy):")
 for lo, hi in zip(bins[:-1], bins[1:]):
     m = (conf >= lo) & (conf < hi)
     if m.sum():
-        print(f"   conf [{lo:.2f},{hi:.2f}): predicted "
-              f"~{conf[m].mean():.3f}, actual {right[m].mean():.3f} "
-              f"({m.sum():,} samples)")
+        print(
+            f"   conf [{lo:.2f},{hi:.2f}): predicted "
+            f"~{conf[m].mean():.3f}, actual {right[m].mean():.3f} "
+            f"({m.sum():,} samples)"
+        )
 
 assert test_acc > 0.90, "the linear floor should clear 90%"
 
@@ -136,30 +150,30 @@ assert test_acc > 0.90, "the linear floor should clear 90%"
 # ----------------------------------------------------------------------
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(10.5, 3.8))
 ep = np.arange(1, len(history["train_loss"]) + 1)
-ax1.plot(ep, history["train_loss"], "o-", color="#2a78d6", ms=3,
-         label="train loss")
-ax1.plot(ep, history["val_loss"], "o-", color="#eb6834", ms=3,
-         label="val loss")
+ax1.plot(ep, history["train_loss"], "o-", color="#2a78d6", ms=3, label="train loss")
+ax1.plot(ep, history["val_loss"], "o-", color="#eb6834", ms=3, label="val loss")
 ax1.set(xlabel="epoch", ylabel="cross-entropy", title="loss curves")
 ax1.legend(frameon=False, fontsize=8)
 ax2.plot(ep, history["val_acc"], "o-", color="#3d9b35", ms=3)
-ax2.set(xlabel="epoch", ylabel="val accuracy",
-        title="validation accuracy")
+ax2.set(xlabel="epoch", ylabel="val accuracy", title="validation accuracy")
 for ax in (ax1, ax2):
-    ax.grid(alpha=.3)
+    ax.grid(alpha=0.3)
     for side in ("top", "right"):
         ax.spines[side].set_visible(False)
 fig.tight_layout()
 
 fig_c, axc = plt.subplots(figsize=(5.6, 5))
 imc = axc.imshow(np.log1p(off), cmap="inferno")
-axc.set(xticks=range(10), yticks=range(10),
-        xlabel="predicted", ylabel="true",
-        title="confusions (diagonal removed, log scale)")
+axc.set(
+    xticks=range(10),
+    yticks=range(10),
+    xlabel="predicted",
+    ylabel="true",
+    title="confusions (diagonal removed, log scale)",
+)
 for t, p in pairs:
-    axc.text(p, t, C[t, p], color="white", ha="center", va="center",
-             fontsize=8)
-fig_c.colorbar(imc, ax=axc, shrink=.8)
+    axc.text(p, t, C[t, p], color="white", ha="center", va="center", fontsize=8)
+fig_c.colorbar(imc, ax=axc, shrink=0.8)
 fig_c.tight_layout()
 
 fig_t, axes_t = plt.subplots(2, 5, figsize=(10.5, 4.4))
@@ -169,8 +183,10 @@ for d, ax in enumerate(axes_t.ravel()):
     ax.imshow(T[d], cmap="coolwarm", vmin=-lim, vmax=lim)
     ax.set_title(str(d), fontsize=10)
     ax.set_xticks([]), ax.set_yticks([])
-fig_t.suptitle("the 10 learned templates — red pixels vote FOR the "
-               "digit, blue AGAINST", fontsize=11)
+fig_t.suptitle(
+    "the 10 learned templates — red pixels vote FOR the " "digit, blue AGAINST",
+    fontsize=11,
+)
 fig_t.tight_layout()
 
 wrong_idx = np.flatnonzero(~right)
@@ -178,8 +194,7 @@ worst = wrong_idx[np.argsort(conf[wrong_idx])[::-1][:16]]
 fig_w, axes_w = plt.subplots(2, 8, figsize=(11, 3.4))
 for ax, i in zip(axes_w.ravel(), worst):
     ax.imshow(X_test_np[i].reshape(28, 28), cmap="gray_r")
-    ax.set_title(f"{y_true[i]} read {y_pred[i]} "
-                 f"p={conf[i]:.2f}", fontsize=7.5)
+    ax.set_title(f"{y_true[i]} read {y_pred[i]} " f"p={conf[i]:.2f}", fontsize=7.5)
     ax.set_xticks([]), ax.set_yticks([])
 fig_w.suptitle("the most confident mistakes", fontsize=11)
 fig_w.tight_layout()
