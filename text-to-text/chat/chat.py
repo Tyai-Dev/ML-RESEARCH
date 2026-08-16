@@ -41,21 +41,20 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-ROOT = Path(__file__).resolve().parents[1]           # llm/
+ROOT = Path(__file__).resolve().parents[1]  # llm/
 sys.path.insert(0, str(ROOT))
-for sub in ("bigram", "ngram-mlp", "attention", "gpt",
-            "tokenization", "finetuning"):
+for sub in ("bigram", "ngram-mlp", "attention", "gpt", "tokenization", "finetuning"):
     sys.path.insert(0, str(ROOT / sub))
 
 from common import SEED, get_device, load_everything, decode  # noqa: E402
-import bigram_practical_pure as bigrammod                     # noqa: E402
-import mlp_practical_pure as mlppure                          # noqa: E402
-import mlp_practical_pytorch as mlpmod                        # noqa: E402
-import attention_practical_pytorch as attnmod                 # noqa: E402
-import gpt_model as gptm                                      # noqa: E402
-import gpt_train as gptt                                      # noqa: E402
-import bpe_theoretical as bpemod                              # noqa: E402
-import finetune_practical_pytorch as ftmod                    # noqa: E402
+import bigram_practical_pure as bigrammod  # noqa: E402
+import mlp_practical_pure as mlppure  # noqa: E402
+import mlp_practical_pytorch as mlpmod  # noqa: E402
+import attention_practical_pytorch as attnmod  # noqa: E402
+import gpt_model as gptm  # noqa: E402
+import gpt_train as gptt  # noqa: E402
+import bpe_theoretical as bpemod  # noqa: E402
+import finetune_practical_pytorch as ftmod  # noqa: E402
 
 CKPT_DIR = Path(__file__).with_name("checkpoints")
 CKPT_DIR.mkdir(exist_ok=True)
@@ -141,10 +140,10 @@ class BlockLM:
 
     @torch.no_grad()
     def reply(self, history, max_chars, temperature, top_k, g):
-        ids = [STOI[c] for c in history[-self.block:]] or [0]
+        ids = [STOI[c] for c in history[-self.block :]] or [0]
         out = ""
         for _ in range(max_chars):
-            x = torch.tensor([ids[-self.block:]], device=DEVICE)
+            x = torch.tensor([ids[-self.block :]], device=DEVICE)
             c = pick_next(self.model(x)[0, -1], temperature, top_k, g)
             out += ITOS[c]
             ids.append(c)
@@ -166,10 +165,10 @@ class BPEWrap:
     @torch.no_grad()
     def reply(self, history, max_chars, temperature, top_k, g):
         toks = bpemod.encode(history[-400:], self.merges, {})
-        ids = [self.stoi[t] for t in toks][-self.block:] or [0]
+        ids = [self.stoi[t] for t in toks][-self.block :] or [0]
         out = ""
         while len(out) < max_chars:
-            x = torch.tensor([ids[-self.block:]], device=DEVICE)
+            x = torch.tensor([ids[-self.block :]], device=DEVICE)
             t = pick_next(self.model(x)[0, -1], temperature, top_k, g)
             out += self.vocab[t]
             ids.append(t)
@@ -189,17 +188,15 @@ def _train_lm(model, get_xy, steps_schedule, label, clip=None):
         opt = torch.optim.Adam(model.parameters(), lr=lr)
         for _ in range(n_steps):
             x, y = get_xy(g)
-            logits = model(x)                    # (B,V) or (B,T,V)
-            loss = F.cross_entropy(logits.reshape(y.numel(), -1),
-                                   y.reshape(-1))
+            logits = model(x)  # (B,V) or (B,T,V)
+            loss = F.cross_entropy(logits.reshape(y.numel(), -1), y.reshape(-1))
             opt.zero_grad()
             loss.backward()
             if clip:
                 torch.nn.utils.clip_grad_norm_(model.parameters(), clip)
             opt.step()
             done += 1
-    print(f"  [{label}] trained {done} steps "
-          f"in {time.perf_counter() - t0:.0f}s")
+    print(f"  [{label}] trained {done} steps " f"in {time.perf_counter() - t0:.0f}s")
     return model
 
 
@@ -217,8 +214,7 @@ def build_mlp():
         Xtr, Ytr = mlpmod.windows_tensor(TRAIN_IDS, DEVICE)
 
         def get_xy(g):
-            rows = torch.randint(0, len(Xtr), (mlpmod.BATCH,),
-                                 generator=g).to(DEVICE)
+            rows = torch.randint(0, len(Xtr), (mlpmod.BATCH,), generator=g).to(DEVICE)
             return Xtr[rows], Ytr[rows]
 
         _train_lm(model, get_xy, mlpmod.LR_SCHEDULE, "ngram-mlp")
@@ -268,9 +264,14 @@ def _load_or_train_gpt():
         torch.nn.utils.clip_grad_norm_(model.parameters(), gptt.GRAD_CLIP)
         opt.step()
     va = torch.from_numpy(VAL_IDS.copy())
-    torch.save({"config": cfg.__dict__, "state_dict": model.state_dict(),
-                "val_nll": gptt.full_nll(model, va, cfg.block_size,
-                                         DEVICE)}, GPT_CKPT)
+    torch.save(
+        {
+            "config": cfg.__dict__,
+            "state_dict": model.state_dict(),
+            "val_nll": gptt.full_nll(model, va, cfg.block_size, DEVICE),
+        },
+        GPT_CKPT,
+    )
     return model, cfg
 
 
@@ -291,15 +292,15 @@ def build_austen():
         model, cfg = _load_or_train_gpt()
         text = ftmod.load_austen(set(CHARS))
         ids = np.array([STOI[c] for c in text], dtype=np.int64)
-        tr = torch.from_numpy(ids[:int(len(ids) * 0.9)].copy())
+        tr = torch.from_numpy(ids[: int(len(ids) * 0.9)].copy())
 
         def get_xy(g):
             return gptt.get_batch(tr, cfg.block_size, 64, g, DEVICE)
 
-        _train_lm(model, get_xy, [(ftmod.FT_LR, ftmod.BUDGET)],
-                  "austen finetune", clip=1.0)
-        torch.save({"config": cfg.__dict__,
-                    "state_dict": model.state_dict()}, path)
+        _train_lm(
+            model, get_xy, [(ftmod.FT_LR, ftmod.BUDGET)], "austen finetune", clip=1.0
+        )
+        torch.save({"config": cfg.__dict__, "state_dict": model.state_dict()}, path)
     return BlockLM(model, cfg.block_size)
 
 
@@ -314,51 +315,79 @@ def build_bpe():
         model = gptm.GPT(cfg).to(DEVICE)
         model.load_state_dict(saved["state_dict"])
     else:
-        print("  training BPE merges + GPT to its early-stop region "
-              "(~2 min)")
+        print("  training BPE merges + GPT to its early-stop region " "(~2 min)")
         text = "".join(ITOS[i] for i in TRAIN_IDS)
         merges, _ = bpemod.train_bpe(text, bpemod.N_MERGES)
         vocab = sorted(set(text)) + [a + b for a, b in merges]
         stoi = {t: i for i, t in enumerate(vocab)}
-        toks = torch.tensor([stoi[t]
-                             for t in bpemod.encode(text, merges, {})])
+        toks = torch.tensor([stoi[t] for t in bpemod.encode(text, merges, {})])
         cfg = gptm.GPTConfig(vocab_size=len(vocab))
         model = gptm.GPT(cfg).to(DEVICE)
 
         def get_xy(g):
-            ix = torch.randint(len(toks) - cfg.block_size - 1, (64,),
-                               generator=g)
-            x = torch.stack([toks[i:i + cfg.block_size]
-                             for i in ix]).to(DEVICE)
-            y = torch.stack([toks[i + 1:i + cfg.block_size + 1]
-                             for i in ix]).to(DEVICE)
+            ix = torch.randint(len(toks) - cfg.block_size - 1, (64,), generator=g)
+            x = torch.stack([toks[i : i + cfg.block_size] for i in ix]).to(DEVICE)
+            y = torch.stack([toks[i + 1 : i + cfg.block_size + 1] for i in ix]).to(
+                DEVICE
+            )
             return x, y
 
         _train_lm(model, get_xy, [(6e-4, 1250)], "bpe-gpt", clip=1.0)
-        torch.save({"config": cfg.__dict__,
-                    "state_dict": model.state_dict(),
-                    "merges": merges, "vocab": vocab}, path)
+        torch.save(
+            {
+                "config": cfg.__dict__,
+                "state_dict": model.state_dict(),
+                "merges": merges,
+                "vocab": vocab,
+            },
+            path,
+        )
     return BPEWrap(model, merges, vocab)
 
 
 REGISTRY = [
-    dict(key="bigram", build=build_bigram, ctx="1 char",
-         desc="rung 1 — count table (instant build)", nll="2.48"),
-    dict(key="ngram-mlp", build=build_mlp, ctx="8 chars",
-         desc="rung 2 — Bengio MLP, 68k params (~20s build)",
-         nll="1.76"),
-    dict(key="attention", build=build_attention, ctx="64 chars",
-         desc="rung 3 — one transformer block, 223k (~70s build)",
-         nll="1.63"),
-    dict(key="gpt", build=build_gpt, ctx="128 chars",
-         desc="rung 4 — the GPT, 3.21M (uses gpt_checkpoint.pt)",
-         nll="1.47"),
-    dict(key="gpt-austen", build=build_austen, ctx="128 chars",
-         desc="rung 4 finetuned on Pride & Prejudice (~1 min build)",
-         nll="1.10 (Austen)"),
-    dict(key="gpt-bpe", build=build_bpe, ctx="~300 chars",
-         desc="rung 4 on 515 BPE tokens (~2 min build)",
-         nll="1.52/char"),
+    dict(
+        key="bigram",
+        build=build_bigram,
+        ctx="1 char",
+        desc="rung 1 — count table (instant build)",
+        nll="2.48",
+    ),
+    dict(
+        key="ngram-mlp",
+        build=build_mlp,
+        ctx="8 chars",
+        desc="rung 2 — Bengio MLP, 68k params (~20s build)",
+        nll="1.76",
+    ),
+    dict(
+        key="attention",
+        build=build_attention,
+        ctx="64 chars",
+        desc="rung 3 — one transformer block, 223k (~70s build)",
+        nll="1.63",
+    ),
+    dict(
+        key="gpt",
+        build=build_gpt,
+        ctx="128 chars",
+        desc="rung 4 — the GPT, 3.21M (uses gpt_checkpoint.pt)",
+        nll="1.47",
+    ),
+    dict(
+        key="gpt-austen",
+        build=build_austen,
+        ctx="128 chars",
+        desc="rung 4 finetuned on Pride & Prejudice (~1 min build)",
+        nll="1.10 (Austen)",
+    ),
+    dict(
+        key="gpt-bpe",
+        build=build_bpe,
+        ctx="~300 chars",
+        desc="rung 4 on 515 BPE tokens (~2 min build)",
+        nll="1.52/char",
+    ),
 ]
 
 
@@ -367,14 +396,18 @@ def list_models(cache):
     for i, m in enumerate(REGISTRY, 1):
         if m["key"] in cache:
             status = "loaded"
-        elif (CKPT_DIR / f"{m['key'].split('-')[-1]}.pt").exists() \
-                or m["key"] == "bigram" \
-                or (m["key"] == "gpt" and GPT_CKPT.exists()):
+        elif (
+            (CKPT_DIR / f"{m['key'].split('-')[-1]}.pt").exists()
+            or m["key"] == "bigram"
+            or (m["key"] == "gpt" and GPT_CKPT.exists())
+        ):
             status = "cached on disk"
         else:
             status = "builds on first use"
-        print(f"  {i}  {m['key']:<12} {m['nll']:<13} {m['ctx']:<10} "
-              f"{status}\n     {m['desc']}")
+        print(
+            f"  {i}  {m['key']:<12} {m['nll']:<13} {m['ctx']:<10} "
+            f"{status}\n     {m['desc']}"
+        )
     print()
 
 
@@ -396,14 +429,14 @@ def main():
         print(f"  now chatting with: {m['key']}  ({m['desc']})")
 
     list_models(cache)
-    switch(3 if GPT_CKPT.exists() else 0)        # best available default
+    switch(3 if GPT_CKPT.exists() else 0)  # best available default
 
     while True:
         try:
             user = input(f"\n[{current['key']} t={temp} k={topk}] you> ")
         except EOFError:
             break
-        user = user.strip().lstrip("﻿")     # BOM guard (piped stdin)
+        user = user.strip().lstrip("﻿")  # BOM guard (piped stdin)
         if not user:
             continue
         if user.startswith("/"):
@@ -436,23 +469,27 @@ def main():
 
         clean = sanitize(user)
         if clean != user:
-            print("  (some characters aren't in the 65-char alphabet "
-                  "and were dropped)")
+            print(
+                "  (some characters aren't in the 65-char alphabet " "and were dropped)"
+            )
         # your line enters the play; the model continues it
-        history += ("" if not history or history.endswith("\n")
-                    else "\n") + clean + "\n"
+        history += (
+            ("" if not history or history.endswith("\n") else "\n") + clean + "\n"
+        )
         g = torch.Generator().manual_seed(
-            torch.seed() % (2 ** 31))            # fresh sample each turn
+            torch.seed() % (2**31)
+        )  # fresh sample each turn
         t0 = time.perf_counter()
-        reply = cache[current["key"]].reply(history, maxlen, temp,
-                                            topk, g)
-        cut = reply.find("\n\n", 40)             # end at the speech's
-        if cut != -1:                            # blank line, dropping
-            reply = reply[:cut + 1]              # the next speaker's stub
+        reply = cache[current["key"]].reply(history, maxlen, temp, topk, g)
+        cut = reply.find("\n\n", 40)  # end at the speech's
+        if cut != -1:  # blank line, dropping
+            reply = reply[: cut + 1]  # the next speaker's stub
         history += reply
         print(f"\n{reply.strip()}")
-        print(f"  -- {current['key']}, {len(reply)} chars in "
-              f"{time.perf_counter() - t0:.1f}s")
+        print(
+            f"  -- {current['key']}, {len(reply)} chars in "
+            f"{time.perf_counter() - t0:.1f}s"
+        )
 
 
 if __name__ == "__main__":
