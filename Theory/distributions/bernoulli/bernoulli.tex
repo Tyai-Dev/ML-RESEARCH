@@ -381,7 +381,6 @@ same objective in the new coordinate, $F(t) =
 \mathcal{L}(\sigma(t))$, over $t \in \mathbb{R}$.
 
 \begin{proposition}[Gradients]
-With $\sigma'(t) = \sigma(t)(1 - \sigma(t))$,
 \begin{equation}
   \boxed{\;F'(t) \;=\; \sigma(t) - \xbar,
   \qquad
@@ -392,6 +391,33 @@ where $g_i$ denotes the gradient of the $i$-th per-sample loss;
 $\E_i[g_i(t)] = F'(t)$ for a uniformly drawn index, and
 $F''(t) = \sigma'(t) > 0$, so $F$ is strictly convex.
 \end{proposition}
+
+\begin{proof}
+First the derivative of the sigmoid itself. From
+$\sigma(t) = (1 + e^{-t})^{-1}$,
+\begin{equation}
+  \sigma'(t)
+  \;=\; \frac{e^{-t}}{(1 + e^{-t})^{2}}
+  \;=\; \frac{1}{1 + e^{-t}} \cdot \frac{e^{-t}}{1 + e^{-t}}
+  \;=\; \sigma(t)\bigl(1 - \sigma(t)\bigr),
+  \label{eq:sigprime}
+\end{equation}
+using $1 - \sigma(t) = e^{-t}/(1 + e^{-t})$. Now the chain rule.
+Writing $s = \sigma(t)$,
+\begin{equation*}
+  F'(t)
+  \;=\; \mathcal{L}'(s)\,\sigma'(t)
+  \;=\; \left[-\frac{\xbar}{s} + \frac{1-\xbar}{1-s}\right]
+        s(1-s)
+  \;=\; -\xbar(1-s) + (1-\xbar)\,s
+  \;=\; s - \xbar,
+\end{equation*}
+every factor cancelling except the residual. The per-sample case is
+identical with $x_i$ in place of $\xbar$, and taking
+$\E_i$ over a uniform index averages $x_i$ back to $\xbar$.
+Differentiating once more, $F''(t) = \sigma'(t) > 0$ by
+\eqref{eq:sigprime}.
+\end{proof}
 
 Stochastic gradient descent iterates
 $t \leftarrow t - \eta\, g_i(t)$ over shuffled passes through the
