@@ -37,7 +37,8 @@ A = lambda t: np.log1p(np.exp(t))
 A1 = (A(theta + h) - A(theta - h)) / (2 * h)
 A2 = (A(theta + h) - 2 * A(theta) + A(theta - h)) / h ** 2
 assert abs(A1 - P_TRUE) < 1e-6 and abs(A2 - P_TRUE * (1 - P_TRUE)) < 1e-4
-print(f"   exp-family: A'(θ) = {A1:.4f} = p,  A''(θ) = {A2:.4f} = p(1-p)")
+print(f"   exp-family: A'(theta) = {A1:.4f} = p,  "
+      f"A''(theta) = {A2:.4f} = p(1-p)")
 
 # information functions: score has mean 0 and variance I(p) = 1/(p(1-p))
 score = (x - P_TRUE) / (P_TRUE * (1 - P_TRUE))
