@@ -73,20 +73,27 @@ def predict(w, X):
     return (sigmoid(X @ w) > 0.5).astype(int)
 
 
-def evaluate(w, X_test, y_test, name: str):
+def evaluate(w, X_test, y_test, name: str, synthetic: bool = True,
+             target_names=("class 0", "class 1")):
     """The final exam, identical for every solver: sklearn's
-    classification report on the held-out split, plus the fitted-vs-
-    Bayes error comparison and the fitted weights."""
+    classification report on the held-out split. On the synthetic
+    problem (default) it also shows the fitted-vs-Bayes-floor gap and
+    w vs w*; on real data (synthetic=False) there is no floor and no
+    w* — the test set is the only truth."""
     y_pred = predict(w, X_test)
     err = float(np.mean(y_pred != y_test))
-    floor = bayes_error(X_test)
     print(f"\n=== {name}: classification report (test, "
           f"n={len(y_test):,}) ===")
     print(classification_report(y_test.astype(int), y_pred,
-                                target_names=["class 0", "class 1"],
+                                target_names=list(target_names),
                                 digits=3))
-    print(f"test error {err:.4f}  vs Bayes floor {floor:.4f}  "
-          f"(gap {err - floor:+.4f})")
-    np.set_printoptions(precision=4, suppress=True)
-    print(f"w fitted {w}   w* {W_TRUE}")
+    if synthetic:
+        floor = bayes_error(X_test)
+        print(f"test error {err:.4f}  vs Bayes floor {floor:.4f}  "
+              f"(gap {err - floor:+.4f})")
+        np.set_printoptions(precision=4, suppress=True)
+        print(f"w fitted {w}   w* {W_TRUE}")
+    else:
+        print(f"test error {err:.4f}  (real data: no Bayes floor to "
+              f"compare against)")
     return err

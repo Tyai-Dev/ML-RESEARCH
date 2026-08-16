@@ -9,6 +9,9 @@ __pycache__/
 # generated results site (rebuild: python site/build.py)
 site/out/
 
+# downloaded datasets (auto-fetched on first use)
+datasets/mnist/
+
 # LaTeX build artifacts
 *.aux
 *.log

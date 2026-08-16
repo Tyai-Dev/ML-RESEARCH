@@ -46,20 +46,31 @@ from common import evaluate, gradient, make_data, nll, predict, sigmoid
 NEWTON_STEPS = 8
 
 
-def train(X, y, X_test, y_test, verbose=True):
-    """The training loop — watch ||grad|| SQUARE itself away."""
+def train(X, y, X_test, y_test, verbose=True, steps=NEWTON_STEPS,
+          damping=0.0):
+    """The training loop — watch ||grad|| SQUARE itself away.
+
+    damping > 0 adds lambda*I to H before solving. Two reasons real
+    data needs it (logistic_mnist.py): dead features (pixels that are
+    zero in every image) put zero rows/columns in H — singular, no
+    solve; and (near-)separable data sends the optimum to infinity —
+    damping shrinks the jump (this is the Levenberg-Marquardt idea,
+    and is exactly Newton on the L2-regularized loss)."""
     n = len(y)
     w = np.zeros(X.shape[1])
     if verbose:
-        print(f"Newton/IRLS: {NEWTON_STEPS} steps, no learning rate "
-              f"(H picks every step)")
+        print(f"Newton/IRLS: {steps} steps, no learning rate "
+              f"(H picks every step)"
+              + (f", damping {damping:g}" if damping else ""))
         print(f"{'step':>5} {'train NLL':>10} {'||grad||':>11} "
               f"{'test acc':>9}")
-    for step in range(1, NEWTON_STEPS + 1):
+    for step in range(1, steps + 1):
         p = sigmoid(X @ w)
         g = X.T @ (p - y) / n
         S = p * (1 - p)                      # Bernoulli variances!
         H = (X.T * S) @ X / n
+        if damping:
+            H = H + damping * np.eye(len(w))
         w = w - np.linalg.solve(H, g)        # the jump to the
         if verbose:                          # quadratic's minimum
             acc = float(np.mean(predict(w, X_test) == y_test))
