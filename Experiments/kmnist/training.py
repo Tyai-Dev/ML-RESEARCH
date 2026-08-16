@@ -49,7 +49,7 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
     if log_style != "quiet":
         print(f"{describe(model)} | {type(loss_fn).__name__} | "
               f"adam lr={lr:g} | {n:,} train / {len(X_val):,} val | "
-              f"batch {batch} ({n_batches:,} batches/epoch) | "
+              f"batch size:{batch}, num:{n_batches:,} | "
               f"{X_train.device.type}")
     tty = sys.stdout.isatty()          # live bar only in a real terminal
 
