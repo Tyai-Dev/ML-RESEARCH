@@ -111,11 +111,51 @@ Conjugate prior & $\mathrm{Beta}(\alpha, \beta)$\\
 \end{tabular}
 \end{center}
 
+\begin{proposition}[Exponential family form]
+\label{prop:expfam}
+The pmf \eqref{eq:pmf} is a full-rank one-parameter exponential
+family: with natural parameter $\theta = \log\frac{p}{1-p}$ and
+log-partition $A(\theta) = \log(1 + e^{\theta})$,
+\begin{equation}
+  f(x; p) \;=\; \exp\bigl(x\theta - A(\theta)\bigr),
+  \qquad
+  A'(\theta) = \sigma(\theta) = p,
+  \qquad
+  A''(\theta) = p(1-p):
+  \label{eq:expfam}
+\end{equation}
+the derivatives of the log-partition generate the mean and variance.
+\end{proposition}
+
 \section{Statistics of the estimator}
 
 Let $x_1, \dots, x_n$ be an i.i.d.\ sample from
 $\mathrm{Bernoulli}(p)$ and write $m = \sum_i x_i$ for the number of
 successes.
+
+\begin{definition}[Score and Fisher information]
+The \emph{score} is the derivative of the log-likelihood of one
+observation,
+\begin{equation}
+  s(p; x) \;=\; \frac{\partial}{\partial p} \log f(x; p)
+  \;=\; \frac{x - p}{p(1-p)},
+  \label{eq:score}
+\end{equation}
+and the \emph{Fisher information} is its variance. The two classical
+identities hold:
+\begin{equation}
+  \E[s(p; X)] = 0,
+  \qquad
+  I(p) \;=\; \Var\bigl(s(p; X)\bigr)
+        \;=\; -\E\Bigl[\tfrac{\partial^2}{\partial p^2}
+              \log f(X; p)\Bigr]
+        \;=\; \frac{1}{p(1-p)}.
+  \label{eq:fisher}
+\end{equation}
+Information is largest at the certain ends and smallest at
+$p = \tfrac12$: an observation is most informative where outcomes are
+most surprising.
+\end{definition}
 
 \begin{proposition}[Sufficiency]
 The likelihood depends on the data only through $m$:
@@ -162,6 +202,39 @@ the central limit theorem
 An asymptotic $95\%$ confidence interval for $p$ is
 $\phat \pm 1.96\sqrt{\phat(1-\phat)/n}$.
 \end{corollary}
+
+\begin{theorem}[UMVUE]
+\label{thm:umvue}
+$\phat = \xbar$ is the unique uniformly minimum-variance unbiased
+estimator of $p$.
+\end{theorem}
+
+\begin{proof}[Proof sketch]
+As a full-rank exponential family (Proposition~\ref{prop:expfam}),
+the sufficient statistic $m$ is also \emph{complete}: no nonzero
+function of $m$ has expectation zero for all $p$ (a polynomial in $p$
+of degree $\le n$ vanishing on $(0,1)$ has all coefficients zero).
+Since $\phat = m/n$ is unbiased and a function of the complete
+sufficient statistic, the Lehmann--Scheff\'e theorem yields the claim.
+\end{proof}
+
+\begin{corollary}[Asymptotic efficiency]
+By \eqref{eq:clt} the limiting variance of $\sqrt{n}(\phat - p)$ is
+$p(1-p) = 1/I(p)$: the estimator is asymptotically efficient, its
+precision fully accounted for by the Fisher information
+\eqref{eq:fisher}.
+\end{corollary}
+
+\begin{remark}[What is estimable at all]
+An unbiased estimator of $g(p)$ from $n$ observations exists if and
+only if $g$ is a polynomial of degree at most $n$: the expectation of
+any statistic is such a polynomial. Consequently quantities such as
+the odds $p/(1-p)$ or $1/p$ admit \emph{no} unbiased estimator at any
+sample size --- unbiasedness is a property of the target, not only of
+the method. (The MLE handles them by invariance:
+the MLE of $g(p)$ is $g(\phat)$, at the price of bias of order
+$1/n$.)
+\end{remark}
 
 \section{Maximum likelihood estimation}
 
@@ -290,6 +363,10 @@ All claims above are verified by \texttt{bernoulli.py}
 Claim & Reference & Measured\\
 \midrule
 $\E[X] = p$, $\Var(X) = p(1-p)$ & \S1 & both within $10^{-3}$\\
+$A'(\theta) = p$, $A''(\theta) = p(1-p)$ & Prop.~\ref{prop:expfam}
+  & finite differences, $10^{-6}$\\
+$\E[s] = 0$, $\Var(s) = I(p)$ & \eqref{eq:fisher}
+  & $10^{-3}$ / $1\%$ (MC)\\
 $\phat_{\mathrm{MLE}}$ vs.\ grid argmax & Thm.~\ref{thm:mle}
   & $0.2978$, agree to $10^{-4}$\\
 $95\%$ CI covers $p$ & Cor.~1 & $[0.2851, 0.3105] \ni 0.3$\\

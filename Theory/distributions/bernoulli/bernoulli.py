@@ -31,6 +31,21 @@ print(f"   var  {x.var():.4f} vs p(1-p)   = {P_TRUE * (1 - P_TRUE):.4f}")
 assert abs(x.mean() - P_TRUE) < 0.02
 assert abs(x.var() - P_TRUE * (1 - P_TRUE)) < 0.02
 
+# exponential family: A(theta) = log(1+e^theta) generates the moments
+theta, h = np.log(P_TRUE / (1 - P_TRUE)), 1e-5
+A = lambda t: np.log1p(np.exp(t))
+A1 = (A(theta + h) - A(theta - h)) / (2 * h)
+A2 = (A(theta + h) - 2 * A(theta) + A(theta - h)) / h ** 2
+assert abs(A1 - P_TRUE) < 1e-6 and abs(A2 - P_TRUE * (1 - P_TRUE)) < 1e-4
+print(f"   exp-family: A'(θ) = {A1:.4f} = p,  A''(θ) = {A2:.4f} = p(1-p)")
+
+# information functions: score has mean 0 and variance I(p) = 1/(p(1-p))
+score = (x - P_TRUE) / (P_TRUE * (1 - P_TRUE))
+I_p = 1 / (P_TRUE * (1 - P_TRUE))
+print(f"   score: mean {score.mean():+.4f} (theory 0),  var "
+      f"{score.var():.3f} vs I(p) = {I_p:.3f}")
+assert abs(score.mean()) < 0.05 and abs(score.var() - I_p) / I_p < 0.02
+
 # ----------------------------------------------------------------------
 # 2. ESTIMATE — MLE closed form, then MAP
 # ----------------------------------------------------------------------
