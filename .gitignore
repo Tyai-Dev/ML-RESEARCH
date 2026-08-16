@@ -32,3 +32,4 @@ Generative/text-to-text/data/soda_chat.txt
 
 # downloaded datasets
 datasets/cifar10/
+datasets/dna/

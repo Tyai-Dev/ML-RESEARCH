@@ -1,0 +1,141 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\newtheorem{theorem}{Theorem}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+\newcommand{\smax}{\operatorname{softmax}}
+
+\title{Cross-Entropy Estimation of Markov Chains:\\
+Next-State Prediction as Classification}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Predicting $p(x_{t+1} \mid x_t)$ in a Markov chain is a $V$-class
+classification problem whose feature is the current state, and
+training that classifier by cross-entropy recovers exactly the
+count-based maximum likelihood estimator of the transition matrix.
+This note derives the equivalence in full --- sequence likelihood,
+collapse to counts, the entropy-plus-KL decomposition, the softmax
+gradient --- and identifies the minimum achievable loss with the
+chain's entropy rate. Every claim is verified by
+\texttt{markov\_cross\_entropy.py}. This is the general form of what
+the character bigram model (\textnormal{Generative/text-to-text})
+does with letters, and the first step of the road to language models.
+\end{abstract}
+
+\section{The objective}
+
+Observe one path $x_1, \dots, x_T$ on states $\{1..V\}$. Model the
+transitions with a logit matrix $Z \in \mathbb{R}^{V \times V}$,
+$q_\theta(j \mid i) = \smax(Z_i)_j$ (one unconstrained row of logits
+per current state --- the simplex freed, as always, by softmax). The
+average negative log-likelihood of the path is the average
+\emph{cross-entropy of the next-state classifier}:
+\begin{equation}
+  \mathcal{L}(Z)
+  \;=\; -\frac{1}{T-1} \sum_{t=1}^{T-1}
+        \log q_\theta(x_{t+1} \mid x_t).
+  \label{eq:nll}
+\end{equation}
+
+\begin{proposition}[Collapse to counts]
+With transition counts $n_{ij}$, row totals $n_i$, occupancies
+$\rho_i = n_i / (T{-}1)$, and empirical transition rows
+$\hat P_{ij} = n_{ij}/n_i$,
+\begin{equation}
+  \mathcal{L}(Z)
+  \;=\; \sum_{i=1}^{V} \rho_i \, H\bigl(\hat P_i,\; \smax(Z_i)\bigr),
+  \label{eq:collapse}
+\end{equation}
+an occupancy-weighted sum of per-state cross-entropies.
+\end{proposition}
+
+\begin{proof}
+Group the sum in \eqref{eq:nll} by the value of $x_t$: transitions
+out of state $i$ contribute $-\sum_j n_{ij} \log \smax(Z_i)_j$;
+divide by $T-1$ and factor $n_i$.
+\end{proof}
+
+\begin{theorem}[Cross-entropy training = count MLE]
+\label{thm:main}
+Using $H(p, q) = H(p) + \mathrm{KL}(p \| q)$ on each row of
+\eqref{eq:collapse},
+\begin{equation}
+  \mathcal{L}(Z)
+  \;=\; \underbrace{\sum_i \rho_i H(\hat P_i)}_{\text{data, fixed}}
+  \;+\; \sum_i \rho_i\,
+  \mathrm{KL}\bigl(\hat P_i \,\|\, \smax(Z_i)\bigr),
+  \label{eq:decomp}
+\end{equation}
+so $\mathcal{L}$ is minimized iff $\smax(Z_i) = \hat P_i$ for every
+visited state (Gibbs): \emph{the classifier's optimum is the count
+table} $\hat P_{ij} = n_{ij}/n_i$ --- the Markov MLE of
+markov-chains.pdf --- and the minimum value is the occupancy-weighted
+entropy of the empirical rows.
+\end{theorem}
+
+\begin{proposition}[Gradient]
+\begin{equation}
+  \boxed{\;\nabla_{Z_i} \mathcal{L}
+  = \rho_i\bigl(\smax(Z_i) - \hat P_i\bigr),
+  \qquad
+  g_t(Z) = \smax(Z_{x_t}) - e_{x_{t+1}} \ \text{ on row } x_t,\;}
+  \label{eq:grad}
+\end{equation}
+the full and per-transition (SGD) forms: softmax minus one-hot,
+prediction minus target --- the same residual as every classifier in
+Algorithms/. A single transition $(x_t, x_{t+1})$ is one training
+example with feature $x_t$ and label $x_{t+1}$.
+\end{proposition}
+
+\begin{remark}[Entropy rate: the floor has a name]
+If the data really comes from a chain $P$ with stationary
+distribution $\pi$, then as $T \to \infty$, $\rho_i \to \pi_i$ and
+$\hat P_i \to P_i$ (ergodic theorem), so the achievable loss tends to
+\begin{equation}
+  H(\mathcal{X}) \;=\; \sum_i \pi_i \, H(P_i),
+  \label{eq:entropyrate}
+\end{equation}
+the chain's \emph{entropy rate} --- the irreducible unpredictability
+of the process. No model, of any capacity, beats it; it is the
+sequence world's Bayes floor.
+\end{remark}
+
+\begin{remark}[The road to language models]
+Everything above is order-1 with a table. Replace ``current state''
+by ``last $k$ states'' and the table dies at $V^k$
+(Generative/text-to-text/ngram-mlp measures the U-turn); replace the
+table by any classifier over an \emph{embedding} of the context ---
+MLP, attention --- and \eqref{eq:nll} is, unchanged, the training
+objective of GPT. A language model is this note, iterated.
+\end{remark}
+
+\section{Numerical verification}
+
+Weather chain of markov-chains.pdf, $T = 2\times10^5$, seed 7
+(\texttt{markov\_cross\_entropy.py}):
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Claim & Reference & Measured\\
+\midrule
+Trained $\smax(Z)$ vs.\ count rows & Thm.~\ref{thm:main} &
+  max gap $< 10^{-3}$\\
+$\min \mathcal{L}$ vs.\ $\sum_i \rho_i H(\hat P_i)$ &
+  \eqref{eq:decomp} & equal to $10^{-6}$\\
+Hand gradient vs.\ autograd & \eqref{eq:grad} & $< 10^{-12}$\\
+$\min \mathcal{L}$ vs.\ entropy rate \eqref{eq:entropyrate} &
+  Rem.~1 & within $10^{-3}$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\end{document}
