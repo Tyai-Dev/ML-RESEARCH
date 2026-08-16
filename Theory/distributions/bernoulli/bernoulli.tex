@@ -1,123 +1,304 @@
 \documentclass[11pt]{article}
 \usepackage{amsmath,amssymb,amsthm}
 \usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\usepackage{tikz}
+\usepackage{hyperref}
+
+\newtheorem{definition}{Definition}
+\newtheorem{theorem}{Theorem}
 \newtheorem{proposition}{Proposition}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{remark}
 \newtheorem{remark}{Remark}
+
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\operatorname{Var}}
 \newcommand{\xbar}{\bar{x}}
 \newcommand{\phat}{\hat{p}}
 
-\title{The Bernoulli Distribution:\\
-Object, Statistics, MLE and MAP, and the Descent to ML}
+\title{The Bernoulli Distribution}
 \author{Yuval Lavie}
 \date{\today}
 
 \begin{document}
 \maketitle
 
+\begin{abstract}
+This note is a self-contained reference for the Bernoulli
+distribution: its definition and elementary properties, the sampling
+properties of its natural estimator, maximum likelihood and maximum a
+posteriori estimation, and the numerical solution of the maximum
+likelihood problem by stochastic gradient descent. All quantitative
+statements are verified numerically by the companion program
+\texttt{bernoulli.py}.
+\end{abstract}
+
 \section{The distribution}
 
-$X \sim \mathrm{Bernoulli}(p)$: support $\{0,1\}$, pmf
-$f(x;p) = p^x (1-p)^{1-x}$ (a case split written as one expression),
-$\mathbb{E}[X] = p$, $\mathrm{Var}(X) = p(1-p)$ --- maximal at
-$p = \tfrac12$, vanishing at the certain ends. For an i.i.d.\ sample
-$x_1..x_n$ with $m = \sum_i x_i$ ones,
+\begin{definition}
+A random variable $X$ follows the \emph{Bernoulli distribution} with
+parameter $p \in [0,1]$, written $X \sim \mathrm{Bernoulli}(p)$, if
+$X$ takes values in $\{0, 1\}$ with
 \begin{equation}
-  L(p) = \prod_i p^{x_i}(1-p)^{1-x_i} = p^m (1-p)^{n-m}:
+  \Pr(X = 1) = p, \qquad \Pr(X = 0) = 1 - p.
+\end{equation}
+\end{definition}
+
+The probability mass function admits the compact form
+\begin{equation}
+  f(x; p) \;=\; p^{x}(1-p)^{1-x}, \qquad x \in \{0, 1\},
+  \label{eq:pmf}
+\end{equation}
+and the cumulative distribution function is the step function
+\begin{equation}
+  F(x; p) \;=\;
+  \begin{cases}
+    0, & x < 0,\\
+    1 - p, & 0 \le x < 1,\\
+    1, & x \ge 1.
+  \end{cases}
+  \label{eq:cdf}
+\end{equation}
+
+\begin{center}
+\begin{tikzpicture}[scale=1.0]
+% pmf
+\draw[->] (-0.6,0) -- (2.0,0) node[below] {$x$};
+\draw[->] (-0.5,-0.1) -- (-0.5,2.3) node[left] {$f$};
+\draw[very thick,color=blue!60!black] (0,0) -- (0,1.4);
+\fill[color=blue!60!black] (0,1.4) circle (2pt);
+\draw[very thick,color=blue!60!black] (1.2,0) -- (1.2,0.6);
+\fill[color=blue!60!black] (1.2,0.6) circle (2pt);
+\node[below] at (0,0) {$0$};
+\node[below] at (1.2,0) {$1$};
+\node[right] at (0.03,1.4) {\small $1-p$};
+\node[right] at (1.23,0.6) {\small $p$};
+\node at (0.7,-0.75) {\small pmf \eqref{eq:pmf}, $p = 0.3$};
+% cdf
+\begin{scope}[xshift=5.2cm]
+\draw[->] (-0.6,0) -- (2.4,0) node[below] {$x$};
+\draw[->] (-0.5,-0.1) -- (-0.5,2.3) node[left] {$F$};
+\draw[very thick,color=blue!60!black] (-0.5,0) -- (0,0);
+\draw[very thick,color=blue!60!black] (0,1.4) -- (1.2,1.4);
+\draw[very thick,color=blue!60!black] (1.2,2.0) -- (2.2,2.0);
+\fill[color=blue!60!black] (0,1.4) circle (2pt);
+\fill[color=blue!60!black] (1.2,2.0) circle (2pt);
+\draw[dotted] (0,0) -- (0,1.4);
+\draw[dotted] (1.2,1.4) -- (1.2,2.0);
+\node[below] at (0,0) {$0$};
+\node[below] at (1.2,0) {$1$};
+\node[left] at (-0.5,1.4) {\small $1{-}p$};
+\node[left] at (-0.5,2.0) {\small $1$};
+\node at (0.9,-0.75) {\small CDF \eqref{eq:cdf}, $p = 0.3$};
+\end{scope}
+\end{tikzpicture}
+\end{center}
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+Support & $\{0, 1\}$\\
+Parameter & $p \in [0, 1]$\\
+Mean & $\E[X] = p$\\
+Variance & $\Var(X) = p(1-p)$\\
+Mode & $\mathbf{1}[p > \tfrac12]$ (both, if $p = \tfrac12$)\\
+Entropy & $-p \log p - (1-p)\log(1-p)$\\
+Moment generating function & $1 - p + p e^{t}$\\
+Fisher information & $I(p) = \dfrac{1}{p(1-p)}$\\
+Conjugate prior & $\mathrm{Beta}(\alpha, \beta)$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{proposition}[Sufficiency]
+For an i.i.d.\ sample $x_1, \dots, x_n$ with $m = \sum_{i} x_i$, the
+likelihood depends on the data only through $m$:
+\begin{equation}
+  L(p) \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i}
+        \;=\; p^{m}(1-p)^{n-m}.
   \label{eq:lik}
 \end{equation}
-the data enters only through the count $m$ --- a \emph{sufficient
-statistic}. Verified by sampling in \texttt{bernoulli.py} (part 1).
+By the factorization criterion, $m$ (equivalently $\xbar = m/n$) is a
+sufficient statistic for $p$.
+\end{proposition}
 
 \section{Statistics of the estimator}
 
-The estimator below will be $\phat = m/n = \xbar$; it is a random
-variable, judged by its distribution:
-\textbf{unbiased} ($\mathbb{E}[\phat] = p$, since
-$m \sim \mathrm{Binomial}(n,p)$); \textbf{variance}
-$p(1-p)/n$, whose square root is the standard error; \textbf{efficient}
---- the Fisher information per sample is $I(p) = 1/(p(1-p))$, so the
-Cram\'er--Rao bound $1/(nI(p)) = p(1-p)/n$ is attained with equality
-(Theory/statistics); \textbf{MSE} $=$ variance (unbiasedness);
-\textbf{consistent} ($\phat \to p$: the LLN); \textbf{asymptotically
-normal}, $\sqrt{n}(\phat - p) \to \mathcal{N}(0, p(1-p))$, buying the
-$95\%$ interval $\phat \pm 1.96\sqrt{\phat(1-\phat)/n}$.
+Throughout, $\phat = m/n$ denotes the sample mean; its sampling
+properties follow from $m \sim \mathrm{Binomial}(n, p)$.
 
-\section{MLE and MAP}
-
-\paragraph{MLE.} Take logs of \eqref{eq:lik} (monotone, so the argmax
-stays): $\ell(p) = m \log p + (n-m)\log(1-p)$. Then
-$\ell'(p) = m/p - (n-m)/(1-p) = 0 \Rightarrow m(1-p) = (n-m)p
-\Rightarrow m = np$:
+\begin{proposition}[Finite-sample properties]
+\label{prop:finite}
+For every $n \ge 1$,
 \begin{equation}
-  \boxed{\;\phat_{\mathrm{MLE}} = \frac{m}{n} = \xbar\;}
+  \E[\phat] = p,
+  \qquad
+  \Var(\phat) = \frac{p(1-p)}{n},
+  \qquad
+  \mathrm{MSE}(\phat) = \frac{p(1-p)}{n}.
+\end{equation}
+Moreover $\Var(\phat)$ attains the Cram\'er--Rao lower bound
+$1/(n I(p))$: among unbiased estimators of $p$, the sample mean is
+\emph{efficient} (see \textnormal{Theory/statistics} for the general
+bound).
+\end{proposition}
+
+\begin{proposition}[Asymptotics]
+\label{prop:asym}
+$\phat \xrightarrow{\,a.s.\,} p$ (strong law of large numbers), and by
+the central limit theorem
+\begin{equation}
+  \sqrt{n}\,(\phat - p) \;\xrightarrow{\ d\ }\;
+  \mathcal{N}\bigl(0,\, p(1-p)\bigr).
+  \label{eq:clt}
+\end{equation}
+\end{proposition}
+
+\begin{corollary}[Confidence interval]
+An asymptotic $95\%$ confidence interval for $p$ is
+$\phat \pm 1.96\sqrt{\phat(1-\phat)/n}$.
+\end{corollary}
+
+\section{Maximum likelihood estimation}
+
+\begin{theorem}[MLE]
+\label{thm:mle}
+Let $0 < m < n$. The unique maximizer of \eqref{eq:lik} over
+$p \in (0,1)$ is
+\begin{equation}
+  \boxed{\;\phat_{\mathrm{MLE}} \;=\; \frac{m}{n} \;=\; \xbar.\;}
   \label{eq:mle}
 \end{equation}
-unique ($\ell'' < 0$: strict concavity); at the edge cases $m \in
-\{0, n\}$ the supremum sits on the boundary and the formula survives.
+\end{theorem}
 
-\paragraph{MAP: the prior as pseudo-counts.} Give $p$ a
-$\mathrm{Beta}(\alpha, \beta)$ prior, $\pi(p) \propto
-p^{\alpha-1}(1-p)^{\beta-1}$. The posterior multiplies pmf and prior:
-\begin{equation*}
-  \pi(p \mid x) \;\propto\; p^{m + \alpha - 1}(1-p)^{n - m + \beta - 1}
-  \;=\; \mathrm{Beta}(m + \alpha,\; n - m + \beta)
-\end{equation*}
---- the same functional form (Beta is \emph{conjugate} to Bernoulli),
-so maximizing it is the MLE computation with shifted counts:
+\begin{proof}
+Since $\log$ is strictly increasing, maximizing $L$ is equivalent to
+maximizing
 \begin{equation}
-  \boxed{\;\phat_{\mathrm{MAP}}
-  = \frac{m + \alpha - 1}{n + \alpha + \beta - 2}\;}
-  \label{eq:map}
+  \ell(p) \;=\; \log L(p) \;=\; m \log p + (n - m)\log(1 - p).
+  \label{eq:loglik}
 \end{equation}
-Read it as \emph{pseudo-counts}: the prior contributes $\alpha - 1$
-imaginary ones and $\beta - 1$ imaginary zeros before any data
-arrives. Three consequences, all verified in the script:
-$\alpha = \beta = 1$ (flat prior) recovers the MLE exactly;
-as $n \to \infty$ the data drowns the prior and
-$\phat_{\mathrm{MAP}} \to \phat_{\mathrm{MLE}}$; and at SMALL $n$ the
-shrinkage toward the prior mean trades a little bias for a lot of
-variance --- measured, MAP beats MLE in MSE on tiny samples.
+Differentiating and equating to zero,
+\begin{equation*}
+  \ell'(p) = \frac{m}{p} - \frac{n-m}{1-p} = 0
+  \;\Longleftrightarrow\;
+  m(1-p) = (n-m)\,p
+  \;\Longleftrightarrow\;
+  m = np,
+\end{equation*}
+which yields \eqref{eq:mle}. Uniqueness follows from strict concavity:
+$\ell''(p) = -m/p^{2} - (n-m)/(1-p)^{2} < 0$ on $(0,1)$.
+\end{proof}
 
-\begin{remark}[We have been doing MAP all along]
-Laplace/add-$\alpha$ smoothing --- used since the bigram model and the
-BPE evaluation (Generative/text-to-text) --- \emph{is}
-\eqref{eq:map}'s multinoulli analog with a Dirichlet prior: smoothing
-is not a hack, it is a prior confessed.
+\begin{remark}[Boundary cases]
+If $m = 0$ or $m = n$, the likelihood is monotone on $(0,1)$ and its
+supremum is attained at the boundary point $m/n$; formula
+\eqref{eq:mle} remains valid.
 \end{remark}
 
-\section{Solving the MLE with SGD}
+\section{Maximum a posteriori estimation}
 
-The ML translation: normalize and negate $\ell$ (neither moves the
-optimizer) into the average NLL
-$\mathcal{L}(p) = -\xbar\log p - (1-\xbar)\log(1-p)$, then free the
-constrained $p \in (0,1)$ through the sigmoid --- the SAME objective in
-a new coordinate, $F(t) = \mathcal{L}(\sigma(t))$. The chain rule
-collapses to
+\begin{proposition}[Conjugacy]
+Let $p \sim \mathrm{Beta}(\alpha, \beta)$, i.e.\
+$\pi(p) \propto p^{\alpha-1}(1-p)^{\beta-1}$. Then the posterior given
+the sample is again Beta:
 \begin{equation}
-  \boxed{\;F'(t) = \sigma(t) - \xbar, \qquad
-  g_i(t) = \sigma(t) - x_i\;}
+  \pi(p \mid x_{1:n}) \;\propto\; L(p)\,\pi(p)
+  \;\propto\; p^{\,m+\alpha-1}(1-p)^{\,n-m+\beta-1}
+  \;=\; \mathrm{Beta}(m + \alpha,\; n - m + \beta).
+\end{equation}
+\end{proposition}
+
+\begin{theorem}[MAP]
+For $m + \alpha > 1$ and $n - m + \beta > 1$, the posterior mode is
+\begin{equation}
+  \boxed{\;\phat_{\mathrm{MAP}}
+  \;=\; \frac{m + \alpha - 1}{\,n + \alpha + \beta - 2\,}.\;}
+  \label{eq:map}
+\end{equation}
+\end{theorem}
+
+\begin{proof}
+The posterior has the functional form of a likelihood
+\eqref{eq:lik} with counts $m' = m + \alpha - 1$ and
+$n' = n + \alpha + \beta - 2$; apply Theorem~\ref{thm:mle}.
+\end{proof}
+
+\begin{remark}[Interpretation and limits]
+The prior acts as \emph{pseudo-counts}: $\alpha - 1$ successes and
+$\beta - 1$ failures observed before any data. In particular
+(i) the flat prior $\alpha = \beta = 1$ gives
+$\phat_{\mathrm{MAP}} = \phat_{\mathrm{MLE}}$ exactly;
+(ii) $\phat_{\mathrm{MAP}} \to \phat_{\mathrm{MLE}}$ as
+$n \to \infty$; and (iii) for small $n$ the estimator shrinks toward
+the prior mode, trading bias for variance --- numerically, at
+$n = 20$ with $\mathrm{Beta}(3,3)$ the MAP mean squared error is
+$0.0085$ against the MLE's $0.0105$ ($2 \times 10^4$ replications).
+Additive (Laplace) smoothing of categorical counts is precisely the
+multinoulli analog of \eqref{eq:map} under a Dirichlet prior.
+\end{remark}
+
+\section{Numerical solution by stochastic gradient descent}
+
+Estimation problems beyond this one rarely admit closed forms; the
+Bernoulli case serves as the minimal instance of the general
+numerical route. Define the average negative log-likelihood
+$\mathcal{L}(p) = -\tfrac1n \ell(p) = -\xbar \log p -
+(1-\xbar)\log(1-p)$, whose minimizer coincides with \eqref{eq:mle}.
+To remove the constraint $p \in (0,1)$, reparameterize through the
+logistic function $\sigma(t) = (1 + e^{-t})^{-1}$ and minimize the
+same objective in the new coordinate, $F(t) =
+\mathcal{L}(\sigma(t))$, over $t \in \mathbb{R}$.
+
+\begin{proposition}[Gradients]
+With $\sigma'(t) = \sigma(t)(1 - \sigma(t))$,
+\begin{equation}
+  \boxed{\;F'(t) \;=\; \sigma(t) - \xbar,
+  \qquad
+  g_i(t) \;=\; \sigma(t) - x_i,\;}
   \label{eq:grad}
 \end{equation}
-(full and per-sample gradients: residuals). SGD steps
-$t \leftarrow t - \eta\, g_i(t)$ one sample at a time: unbiased
-($\mathbb{E}_i[g_i] = F'$), cheap, and with constant $\eta$ it never
-converges --- it hovers in a noise ball, cured by Polyak--Ruppert
-averaging of the final epoch. $F'' = \sigma' > 0$: one basin. By MLE
-\emph{invariance}, $\hat p = \sigma(\hat t\,)$ --- the reparameterization
-is harmless. (Autograd on
-\texttt{binary\_cross\_entropy\_with\_logits} reproduces
-\eqref{eq:grad} to machine precision --- checked in the script, the
-repo's standard proof by computation.)
+where $g_i$ denotes the gradient of the $i$-th per-sample loss;
+$\E_i[g_i(t)] = F'(t)$ for a uniformly drawn index, and
+$F''(t) = \sigma'(t) > 0$, so $F$ is strictly convex.
+\end{proposition}
 
-\section{Experiment}
+Stochastic gradient descent iterates
+$t \leftarrow t - \eta\, g_i(t)$ over shuffled passes through the
+sample. With a constant step size $\eta$ the iterate reaches a
+stationary distribution concentrated near the optimum rather than
+converging; the estimator is therefore taken as the
+Polyak--Ruppert average of the final pass, mapped back through
+$\sigma$ (by the invariance of maximum likelihood,
+$\phat = \sigma(\hat t\,)$). Automatic differentiation of the
+logistic cross-entropy reproduces \eqref{eq:grad}; driving both
+implementations through an identical sample schedule yields
+identical trajectories, which the companion program asserts.
 
-\texttt{bernoulli.py}, $p = 0.3$, seed 7: sampling verifies both
-moments to $10^{-3}$; the closed form gives $\phat = 0.2978$
-($n = 5000$), matching a brute-force argmax and covered by its $95\%$
-interval; MAP with $\mathrm{Beta}(3,3)$ at $n = 20$ beats the MLE's
-MSE (measured over $20{,}000$ replications) and coincides with it to
-$10^{-3}$ by $n = 5000$; the logged SGD loop descends to the noise
-ball and the Polyak average lands within $10^{-3}$ of $\xbar$, with
-the autograd trajectory identical to the hand loop.
+\section{Numerical verification}
+
+All claims above are verified by \texttt{bernoulli.py}
+($p = 0.3$, $n = 5000$, seed 7):
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Claim & Reference & Measured\\
+\midrule
+$\E[X] = p$, $\Var(X) = p(1-p)$ & \S1 & both within $10^{-3}$\\
+$\phat_{\mathrm{MLE}}$ vs.\ grid argmax & Thm.~\ref{thm:mle}
+  & $0.2978$, agree to $10^{-4}$\\
+$95\%$ CI covers $p$ & Cor.~1 & $[0.2851, 0.3105] \ni 0.3$\\
+Flat prior: MAP $=$ MLE & Rem.~3(i) & exact equality\\
+Small-$n$ MSE, MAP vs.\ MLE & Rem.~3(iii) & $0.0085 < 0.0105$\\
+$|\mathrm{MAP} - \mathrm{MLE}|$ at $n = 5000$ & Rem.~3(ii)
+  & $1.6 \times 10^{-4}$\\
+Polyak average vs.\ closed form & \S5 & $0.2979$ vs.\ $0.2978$\\
+Hand SGD vs.\ autograd trajectory & \eqref{eq:grad}
+  & max gap $0.0$\\
+\bottomrule
+\end{tabular}
+\end{center}
 
 \end{document}
