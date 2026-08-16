@@ -55,8 +55,10 @@ PY = sys.executable
 # registry: slug -> (script path, tex path or None, title, blurb)
 EXPERIMENTS = {
     "logistic-regression": dict(
-        script="logistic-regression/logistic_animation.py",
-        tex="logistic-regression/logistic-regression.tex",
+        script="Algorithms/classification/binary/logistic/"
+               "logistic_animation.py",
+        tex="Algorithms/classification/binary/logistic/"
+            "logistic-regression.tex",
         title="Logistic Regression",
         blurb="A Bernoulli whose parameter is a function of X: "
               "Newton/IRLS vs GD vs SGD vs autograd, the Bayes floor, "

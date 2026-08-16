@@ -1,0 +1,68 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{The Multinoulli (Categorical) Distribution}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+One draw, $K$ outcomes: $\Pr(X = j) = p_j$, with $p$ on the simplex
+($p_j \ge 0$, $\sum_j p_j = 1$). Bernoulli is the case $K = 2$. In
+one-hot coordinates $e_X \in \{0,1\}^K$ the pmf is
+$\prod_j p_j^{\,[X = j]}$ and everything becomes linear algebra.
+
+\section{Moments}
+
+Each coordinate of $e_X$ is a bernoulli indicator, so
+\begin{equation}
+  \mathbb{E}[e_X] = p, \qquad
+  \operatorname{Cov}[e_X] = \operatorname{diag}(p) - p\,p^{\!\top}:
+  \label{eq:moments}
+\end{equation}
+variances $p_j(1 - p_j)$ on the diagonal, and for $i \ne j$
+\begin{equation*}
+  \operatorname{Cov}(\mathbf{1}[X{=}i], \mathbf{1}[X{=}j])
+  = \mathbb{E}[\mathbf{1}[X{=}i]\mathbf{1}[X{=}j]] - p_i p_j
+  = 0 - p_i p_j = -p_i p_j
+\end{equation*}
+--- \emph{negative}: one category firing forbids the others. The
+companion script verifies the entire matrix \eqref{eq:moments} against
+$2 \times 10^5$ samples.
+
+\section{Maximum likelihood}
+
+For $n$ i.i.d.\ draws with counts $n_j$, the log-likelihood is
+$\ell(p) = \sum_j n_j \log p_j$. Maximizing subject to
+$\sum_j p_j = 1$ (Lagrange): $n_j / p_j = \lambda$ for every $j$, and
+the constraint forces $\lambda = n$, hence
+\begin{equation}
+  \boxed{\;\hat{p}_j = \frac{n_j}{n}\;}
+  \label{eq:mle}
+\end{equation}
+--- count and normalize; bernoulli's $m/n$, one level up. Optimality
+the information-theoretic way: for any challenger $q$,
+$\mathrm{NLL}(q) - \mathrm{NLL}(\hat p) = n\,\mathrm{KL}(\hat p \| q)
+\ge 0$ (Gibbs; Theory/information-theory), verified against $500$
+random challengers. The counts $(n_1..n_K)$ are sufficient.
+
+\paragraph{Report card.} Each coordinate is a bernoulli MLE:
+unbiased, $\mathrm{Var}(\hat p_j) = p_j(1-p_j)/n$ (verified to a few
+percent over $1000$ replications), jointly asymptotically normal with
+covariance $\frac1n(\operatorname{diag}(p) - pp^{\!\top})$.
+
+\begin{remark}[Where this object runs the repo]
+Every softmax model estimates a multinoulli whose parameter depends
+on $x$ (Algorithms/classification/multiclass/softmax); every row of a
+Markov transition matrix is one (Theory/markov-chains); every
+language model's next-token head is one
+(text-to-text/). Equation \eqref{eq:mle} is why ``count and
+normalize'' keeps appearing as the closed form.
+\end{remark}
+
+\end{document}

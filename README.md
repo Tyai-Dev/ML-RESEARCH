@@ -5,6 +5,26 @@ self-contained: a runnable, heavily documented `.py` and a `.tex` deriving
 the math. No framework — just VS Code, the `ml-research` conda env
 (numpy, matplotlib, torch), and MiKTeX.
 
+## Layout
+
+```
+Theory/           the mathematics: distributions (each with PDF + verified
+                  implementations), statistics, markov-chains, optimization,
+                  optimizers, losses, evaluation, learning-theory, info-theory
+Algorithms/       how to fit, on clean synthetic data
+  regression/         linear, multi-output, poisson (GLM story)
+  classification/     binary/ (logistic, perceptron, PA, SVM — the last three
+                      distribution-free, stated in their PDFs, multiclass
+                      variants inside) and multiclass/ (softmax)
+  ranking/            planned (PRank)
+  autoencoders/       planned
+Experiments/      algorithms meet real data (mnist/)
+text-to-text/     the generative text track (bigram → GPT ladder, BPE,
+                  finetuning, scaling, chat); text-to-image/, text-to-audio/,
+                  text-to-video/ reserved for future modality tracks
+datasets/         shared loaders (MNIST from raw IDX bytes)
+```
+
 ## Workflow
 
 - **F5** runs the file you're editing (launch config "current file";
@@ -29,24 +49,24 @@ in its script passes.
 
 | Folder | Concept |
 |---|---|
-| `bernoulli/` | Bernoulli MLE in three files — `mle_theoretical.py` (closed form vs brute force), `mle_practical_pure.py` (GD + SGD by hand, with an *animation* of the estimator descending the NLL), `mle_practical_pytorch.py` (autograd trajectory == hand trajectory, exactly) |
-| `gaussian/` | 1D normal MLE for (mu, sigma): same four routes; the MLE variance is the biased 1/n estimator |
-| `linear-regression/` | Normal equations vs GD/SGD, and why the closed form is not always the right tool (cost, conditioning — with a float32 demo where normal equations lose to QR by 4000x — streaming, generality) |
-| `logistic-regression/` | The conditional-Bernoulli view of classification: Y\|X=x ~ Bernoulli(p(x)), linear log-odds, conditional MLE. One solver per file over a shared `common.py` — SGD (logged noise ball + autograd identity), GD (geometric ‖grad‖ decay; separable divergence), Newton/IRLS (‖grad‖ squares away in 8 rows) — each ending in a sklearn classification report; the SGD film in `logistic_animation.py`; and `logistic_mnist.py`: the same unchanged loops on real images (MNIST 3 vs 5, 96.7%, ŵ rendered as the template it learned, damped Newton after the singular-Hessian crash) |
-| `poisson/` | Count data: Y\|x ~ Poisson(exp(w·x)); gradient (λ−y)x; Newton/IRLS — and the GLM unification theorem: canonical link ⇒ gradient = (mean − y)·x for the whole family |
-| `softmax-regression/` | Bernoulli → multinoulli: Y\|x ~ Multinoulli(softmax(Wx)); cross-entropy gradient (softmax − onehot)⊗x; identifiability up to row-shift; multiclass Bayes floor E[1 − max p] met |
-| `multi-output-regression/` | Linear → multivariate Gaussian: vector response, Frobenius loss separates per column so the closed form survives; SUR collapse; the one-hot "linearization trick" and its broken probabilities |
-| `perceptron/` | Distribution-free: online mistakes, no p(x). Novikoff's (R/γ)² bound proved and verified; multiclass promote/demote; noise breaks convergence forever |
-| `passive-aggressive/` | Online learning as per-step optimization: min ‖w−w_t‖² s.t. hinge = 0, closed form via KKT (verified vs brute force); PA-I/PA-II noise robustness raced; multiclass PA |
-| `svm/` | Margin maximization: hard margin from geometry, KKT ⇒ support vectors (dropping 1324 non-SVs moves w by 0.0000; dropping 176 SVs by 0.25), soft margin = hinge + L2, Pegasos, logistic comparison, kernel remark |
+| `Theory/distributions/bernoulli/` | Bernoulli MLE in three files — `mle_theoretical.py` (closed form vs brute force), `mle_practical_pure.py` (GD + SGD by hand, with an *animation* of the estimator descending the NLL), `mle_practical_pytorch.py` (autograd trajectory == hand trajectory, exactly) |
+| `Theory/distributions/gaussian/` | 1D normal MLE for (mu, sigma): same four routes; the MLE variance is the biased 1/n estimator |
+| `Algorithms/regression/linear/` | Normal equations vs GD/SGD, and why the closed form is not always the right tool (cost, conditioning — with a float32 demo where normal equations lose to QR by 4000x — streaming, generality) |
+| `Algorithms/classification/binary/logistic/` | The conditional-Bernoulli view of classification: Y\|X=x ~ Bernoulli(p(x)), linear log-odds, conditional MLE. One solver per file over a shared `common.py` — SGD (logged noise ball + autograd identity), GD (geometric ‖grad‖ decay; separable divergence), Newton/IRLS (‖grad‖ squares away in 8 rows) — each ending in a sklearn classification report; the SGD film in `logistic_animation.py`; and `logistic_mnist.py`: the same unchanged loops on real images (MNIST 3 vs 5, 96.7%, ŵ rendered as the template it learned, damped Newton after the singular-Hessian crash) |
+| `Algorithms/regression/poisson/` | Count data: Y\|x ~ Poisson(exp(w·x)); gradient (λ−y)x; Newton/IRLS — and the GLM unification theorem: canonical link ⇒ gradient = (mean − y)·x for the whole family |
+| `Algorithms/classification/multiclass/softmax/` | Bernoulli → multinoulli: Y\|x ~ Multinoulli(softmax(Wx)); cross-entropy gradient (softmax − onehot)⊗x; identifiability up to row-shift; multiclass Bayes floor E[1 − max p] met |
+| `Algorithms/regression/multi-output/` | Linear → multivariate Gaussian: vector response, Frobenius loss separates per column so the closed form survives; SUR collapse; the one-hot "linearization trick" and its broken probabilities |
+| `Algorithms/classification/binary/perceptron/` | Distribution-free: online mistakes, no p(x). Novikoff's (R/γ)² bound proved and verified; multiclass promote/demote; noise breaks convergence forever |
+| `Algorithms/classification/binary/passive-aggressive/` | Online learning as per-step optimization: min ‖w−w_t‖² s.t. hinge = 0, closed form via KKT (verified vs brute force); PA-I/PA-II noise robustness raced; multiclass PA |
+| `Algorithms/classification/binary/svm/` | Margin maximization: hard margin from geometry, KKT ⇒ support vectors (dropping 1324 non-SVs moves w by 0.0000; dropping 176 SVs by 0.25), soft margin = hinge + L2, Pegasos, logistic comparison, kernel remark |
 
 ## MNIST classifier (real images, torch, model zoo)
 
 | File | Role |
 |---|---|
-| `mnist-classifier/models.py` | The zoo, smallest first: `SoftmaxRegression` (784→10 linear, 7.9k params) — the floor every later model must beat on the same splits |
-| `mnist-classifier/training.py` | The generic engine: `fit(model, loss_fn, ...)` — model and loss are arguments; quarter-epoch running stats, per-epoch val + best-checkpoint restore, seeded batches |
-| `mnist-classifier/mnist_softmax.py` | The pipeline: LOAD (55k/5k/10k) → LOOK (examples + balance) → TRAIN → EXAMINE (10-class sklearn report, confusion matrix + worst pairs, confidence/calibration, the 10 learned templates as images, most confident mistakes). Linear floor: **92.74%** test |
+| `Experiments/mnist/models.py` | The zoo, smallest first: `SoftmaxRegression` (784→10 linear, 7.9k params) — the floor every later model must beat on the same splits |
+| `Experiments/mnist/training.py` | The generic engine: `fit(model, loss_fn, ...)` — model and loss are arguments; quarter-epoch running stats, per-epoch val + best-checkpoint restore, seeded batches |
+| `Experiments/mnist/mnist_softmax.py` | The pipeline: LOAD (55k/5k/10k) → LOOK (examples + balance) → TRAIN → EXAMINE (10-class sklearn report, confusion matrix + worst pairs, confidence/calibration, the 10 learned templates as images, most confident mistakes). Linear floor: **92.74%** test |
 
 ## LLM track
 
@@ -58,20 +78,20 @@ must numerically beat the last:
 
 | Rung | Model | val NLL (nats/char) | PPL |
 |---|---|---|---|
-| `llm/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
-| `llm/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
-| `llm/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
-| `llm/gpt/` | Full decoder assembled from the verified parts: 4 blocks, T=128, 3.21M params, weight tying, AdamW + warmup/cosine + clipping (each ablated — verdict: insurance, not magic); 2.3 min on the 4070 | 1.4724 | **4.36** |
+| `text-to-text/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
+| `text-to-text/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
+| `text-to-text/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
+| `text-to-text/gpt/` | Full decoder assembled from the verified parts: 4 blocks, T=128, 3.21M params, weight tying, AdamW + warmup/cosine + clipping (each ablated — verdict: insurance, not magic); 2.3 min on the 4070 | 1.4724 | **4.36** |
 
-**Talk to them**: `llm/chat/chat.py` (F5) is one REPL over every model — pick a rung with `/model`, type a line, and it becomes part of a play the model continues autoregressively. Models build on first selection and cache to `llm/chat/checkpoints/`; switching rungs mid-conversation lets you *feel* the ladder (the bigram babbles no matter what you say; the GPT answers in blank verse; `gpt-austen` switches to drawing-room prose).
+**Talk to them**: `text-to-text/chat/chat.py` (F5) is one REPL over every model — pick a rung with `/model`, type a line, and it becomes part of a play the model continues autoregressively. Models build on first selection and cache to `text-to-text/chat/checkpoints/`; switching rungs mid-conversation lets you *feel* the ladder (the bigram babbles no matter what you say; the GPT answers in blank verse; `gpt-austen` switches to drawing-room prose).
 
 Beyond the ladder (same measuring stick — NLL per **char**, so tokenizers stay comparable):
 
 | Folder | Experiment | Headline number |
 |---|---|---|
-| `llm/tokenization/` | BPE by hand (lossless roundtrip asserted; vocab rediscovers ' the', '\n\n', 'ICHARD'); rung-4 GPT on 515 tokens overfits on schedule → early stopping enters | chars win: 1.5165 vs 1.4724 — data, not context, is the bottleneck |
-| `llm/finetuning/` | Shakespeare checkpoint → Austen: zero-shot 1.7341, finetune (lr 1e-4) 1.0978, identical-budget scratch 1.2393 | pretraining worth 0.14 nats/char |
-| `llm/scaling/` | Param sweep (0.2M–8M) vs data sweep (10%–100%) under a fixed budget | param gains stall + overfit gap grows; every data doubling still pays — data-limited regime, measured |
+| `text-to-text/tokenization/` | BPE by hand (lossless roundtrip asserted; vocab rediscovers ' the', '\n\n', 'ICHARD'); rung-4 GPT on 515 tokens overfits on schedule → early stopping enters | chars win: 1.5165 vs 1.4724 — data, not context, is the bottleneck |
+| `text-to-text/finetuning/` | Shakespeare checkpoint → Austen: zero-shot 1.7341, finetune (lr 1e-4) 1.0978, identical-budget scratch 1.2393 | pretraining worth 0.14 nats/char |
+| `text-to-text/scaling/` | Param sweep (0.2M–8M) vs data sweep (10%–100%) under a fixed budget | param gains stall + overfit gap grows; every data doubling still pays — data-limited regime, measured |
 
 ## Theory (reference pages)
 

@@ -7,7 +7,7 @@ computes log-softmax internally via the log-sum-exp trick — composing
 them separately is both slower and numerically worse; the same reason
 rung 1 of the LLM track used cross_entropy on logits).
 
-SoftmaxRegression is exactly softmax-regression/softmax.py — the
+SoftmaxRegression is exactly Algorithms/classification/multiclass/softmax/softmax.py — the
 conditional multinoulli Y|x ~ Multinoulli(softmax(Wx)), one weight
 vector per class — wearing torch clothes. Its 10 weight rows are 10
 IMAGES: the templates the classifier matches against, visualized by

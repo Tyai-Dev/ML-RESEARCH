@@ -1,0 +1,74 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+
+\title{The Multivariate Gaussian}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\noindent
+$x \sim \mathcal{N}(\mu, \Sigma)$ on $\mathbb{R}^d$:
+\begin{equation}
+  f(x) = \frac{1}{(2\pi)^{d/2} |\Sigma|^{1/2}}
+  \exp\!\Bigl(-\tfrac12 (x-\mu)^{\!\top} \Sigma^{-1} (x-\mu)\Bigr),
+  \label{eq:density}
+\end{equation}
+$\Sigma$ symmetric positive definite. The level sets are ellipsoids:
+$\Sigma$'s eigenvectors are their axes, its eigenvalues the variances
+along them (drawn by the companion script as the $1\sigma/2\sigma$
+ellipses over a sample).
+
+\section{Closure under linear maps}
+
+\begin{proposition}
+If $x \sim \mathcal{N}(\mu, \Sigma)$ then
+$Ax + b \sim \mathcal{N}(A\mu + b,\, A \Sigma A^{\!\top})$.
+\end{proposition}
+This is the property that makes Gaussians ``the linear algebra of
+probability'': marginals, sums, and projections of Gaussians stay
+Gaussian, with moments you can compute by matrix arithmetic. Verified
+by sampling with a random $A$.
+
+\section{Conditioning is linear regression}
+
+Partition $x = (x_0, x_1)$ with blocks of $\Sigma$. Then
+\begin{equation}
+  \boxed{\;x_0 \mid x_1 \;\sim\; \mathcal{N}\bigl(
+  \mu_0 + \Sigma_{01}\Sigma_{11}^{-1}(x_1 - \mu_1),\;
+  \Sigma_{00} - \Sigma_{01}\Sigma_{11}^{-1}\Sigma_{10}\bigr)\;}
+  \label{eq:cond}
+\end{equation}
+--- the conditional mean is \emph{linear} in $x_1$, and the
+conditional covariance does not depend on $x_1$ at all
+(homoscedasticity). Verified by binning a $2\times10^5$ sample: the
+binned conditional means lie on the predicted line to $0.05$, the
+conditional variance is flat at the predicted value.
+
+\begin{remark}[Why regression is linear]
+\eqref{eq:cond} is the generative justification of
+Algorithms/regression/linear: if $(x, y)$ are jointly Gaussian, the
+best predictor of $y$ from $x$ IS a line, and least squares estimates
+exactly $\Sigma_{01}\Sigma_{11}^{-1}$.
+\end{remark}
+
+\section{Maximum likelihood}
+
+For $n$ i.i.d.\ samples, maximizing \eqref{eq:density}'s
+log-likelihood gives
+\begin{equation}
+  \boxed{\;\hat\mu = \bar x, \qquad
+  \hat\Sigma = \frac1n \sum_i (x_i - \bar x)(x_i - \bar x)^{\!\top}\;}
+  \label{eq:mle}
+\end{equation}
+The $1/n$ makes $\hat\Sigma$ biased:
+$\mathbb{E}[\hat\Sigma] = \frac{n-1}{n}\Sigma$ (the sample mean has
+eaten one degree of freedom) --- the 1D gaussian folder's lesson as a
+matrix statement, measured at $n = 5$: empirical factor $0.80$ against
+$(n-1)/n = 0.8$.
+
+\end{document}

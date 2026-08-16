@@ -17,7 +17,7 @@ The ML-style pipeline, each stage in plain sight:
                and the most confident mistakes.
 
 The model: SoftmaxRegression — one linear layer, the conditional
-multinoulli of softmax-regression/ in torch clothes, 7,850 parameters.
+multinoulli of Algorithms/classification/multiclass/softmax/ in torch clothes, 7,850 parameters.
 Expect ~92-93%: the linear floor. Every future model in models.py
 must beat it on the SAME splits and report.
 
@@ -34,7 +34,7 @@ import torch
 import torch.nn as nn
 from sklearn.metrics import classification_report, confusion_matrix
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "datasets"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "datasets"))
 from mnist import load_mnist                      # noqa: E402
 
 from models import SoftmaxRegression              # noqa: E402

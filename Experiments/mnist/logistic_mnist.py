@@ -41,7 +41,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "datasets"))
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "datasets"))
+sys.path.insert(0, str(ROOT / "Algorithms" / "classification"
+                       / "binary" / "logistic"))
 from mnist import load_binary                     # noqa: E402
 
 import logistic_sgd                               # noqa: E402

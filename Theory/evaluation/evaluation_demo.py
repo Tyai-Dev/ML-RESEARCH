@@ -78,7 +78,7 @@ def make_data(w_true, n):
 
 
 def fit_irls(X, y, steps=25):
-    """Logistic MLE by IRLS (logistic-regression/)."""
+    """Logistic MLE by IRLS (Algorithms/classification/binary/logistic/)."""
     w = np.zeros(X.shape[1])
     for _ in range(steps):
         p = sigmoid(X @ w)

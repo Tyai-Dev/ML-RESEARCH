@@ -47,8 +47,8 @@ $\kappa$-dependence is GD's weakness: on an ill-conditioned valley
 leaving the shallow direction to crawl.
 
 \paragraph{SGD.} Replace $g_k$ by an unbiased estimate from one sample or
-a mini-batch (as in \texttt{bernoulli/}, \texttt{gaussian/},
-\texttt{linear-regression/}): cost per step drops from $O(n)$ to $O(1)$
+a mini-batch (as in \texttt{Theory/distributions/bernoulli/}, \texttt{Theory/distributions/gaussian/},
+\texttt{Algorithms/regression/linear/}): cost per step drops from $O(n)$ to $O(1)$
 samples; a constant step leaves a noise ball, handled by averaging
 (Polyak--Ruppert) or decaying steps. All methods below take stochastic
 gradients in practice.

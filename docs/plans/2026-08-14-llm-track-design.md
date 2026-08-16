@@ -9,7 +9,7 @@ Build an LLM by hand, train it, and improve it — in raw PyTorch (`nn.Module` +
 ## Structure
 
 ```
-llm/
+text-to-text/
   common.py            # corpus loading, char vocab, train/val split, device, seeds
   data/                # tinyshakespeare.txt (auto-downloaded, committed)
   bigram/              # rung 1
@@ -31,8 +31,8 @@ Each rung exists because the previous one provably fails; each must numerically 
 
 ## Training loop and the "improve it" arc
 
-The loop is hand-written once in `llm/common.py` (~30 documented lines): batching of random context windows, train/val NLL estimation, checkpointing, sampling. From `gpt/` onward it gains real-world knobs — AdamW, LR warmup + cosine decay, gradient clipping — each introduced when its absence hurts, via an ablation script with before/after loss curves. Improvements are experiments, never folklore.
+The loop is hand-written once in `text-to-text/common.py` (~30 documented lines): batching of random context windows, train/val NLL estimation, checkpointing, sampling. From `gpt/` onward it gains real-world knobs — AdamW, LR warmup + cosine decay, gradient clipping — each introduced when its absence hurts, via an ablation script with before/after loss curves. Improvements are experiments, never folklore.
 
 ## Later (separate designs, YAGNI for now)
 
-BPE tokenization (`llm/tokenization/`, merges by hand), scaling experiments (params vs data vs loss), finetuning.
+BPE tokenization (`text-to-text/tokenization/`, merges by hand), scaling experiments (params vs data vs loss), finetuning.

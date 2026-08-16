@@ -17,7 +17,7 @@ ladder: the bigram babbles letter-texture regardless of what you say
 transformer models actually stay with your words (context: 64-128).
 
 Models are built on first selection and cached to chat/checkpoints/
-(the Shakespeare GPT reuses llm/gpt/gpt_checkpoint.pt if you already
+(the Shakespeare GPT reuses text-to-text/gpt/gpt_checkpoint.pt if you already
 ran gpt_train.py; the Austen model finetunes from it; the BPE model
 trains to its early-stopping region — see each folder's tex).
 
@@ -41,7 +41,7 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 
-ROOT = Path(__file__).resolve().parents[1]  # llm/
+ROOT = Path(__file__).resolve().parents[1]  # text-to-text/
 sys.path.insert(0, str(ROOT))
 for sub in ("bigram", "ngram-mlp", "attention", "gpt", "tokenization", "finetuning"):
     sys.path.insert(0, str(ROOT / sub))

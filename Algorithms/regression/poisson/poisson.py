@@ -1,6 +1,6 @@
 r"""Poisson regression: a Poisson whose rate is a function of X.
 
-The same conditional-distribution recipe as logistic-regression/, applied
+The same conditional-distribution recipe as Algorithms/classification/binary/logistic/, applied
 to COUNT data:
 
     Y | X=x ~ Poisson( lambda(x) ),    lambda(x) = exp(w . x)  (log link),

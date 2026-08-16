@@ -43,7 +43,7 @@ lifted first-order chain over character pairs, term for term. This is
 why "n-gram model" and "Markov chain" are the same mathematics.
 
 THE FITTED CHAIN IS SELF-CONSISTENT. The stationary distribution of
-the MLE bigram chain fitted to Shakespeare (llm/bigram) matches the
+the MLE bigram chain fitted to Shakespeare (text-to-text/bigram) matches the
 empirical letter frequencies to ~1e-4 — the eigenvector of a 65x65
 matrix predicting the histogram of a million characters. (Why: the
 empirical bigram counts are, up to the path's two endpoints, a flow
@@ -60,7 +60,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "llm"))
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]
+                       / "text-to-text"))
 
 SEED = 7
 rng = np.random.default_rng(SEED)

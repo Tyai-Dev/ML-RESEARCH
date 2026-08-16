@@ -17,7 +17,7 @@ What the loop does, and logs, per epoch:
   - best-validation tracking with a '*' on record epochs; the best
     weights are RESTORED at the end (early stopping's gentle form —
     the last epoch is not necessarily the best one, a lesson measured
-    the hard way in llm/tokenization).
+    the hard way in text-to-text/tokenization).
 
 Returns a history dict (per-epoch curves) for plotting.
 """

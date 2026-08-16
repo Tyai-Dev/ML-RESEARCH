@@ -28,7 +28,7 @@ Newton's jump target is the one global optimum.
 WHY IT'S ALSO CALLED IRLS ("iteratively reweighted least squares"):
 rearranging the Newton step gives  (X^T S X) d = X^T (y - p)  — which
 is exactly the NORMAL EQUATION of a weighted least-squares problem
-(linear-regression/, with weights S). So Newton-for-logistic =
+(Algorithms/regression/linear/, with weights S). So Newton-for-logistic =
 "solve a weighted linear regression, update the weights, repeat":
 the statistician's classical algorithm, and what R's glm() runs.
 

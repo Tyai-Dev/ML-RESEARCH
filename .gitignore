@@ -12,6 +12,10 @@ site/out/
 # downloaded datasets (auto-fetched on first use)
 datasets/mnist/
 
+# large generated corpora (rebuild: text-to-text/data/prepare_datasets.py)
+text-to-text/data/tinystories*.txt
+text-to-text/data/soda_chat.txt
+
 # LaTeX build artifacts
 *.aux
 *.log
