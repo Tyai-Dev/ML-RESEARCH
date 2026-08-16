@@ -39,17 +39,36 @@ def evaluate(model, loss_fn, X, y, batch: int = 1024):
 
 
 def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
-        epochs=10, batch=128, lr=1e-3, log_style="delta"):
+        epochs=10, batch=128, lr=1e-3, optimizer="adamw",
+        weight_decay=1e-2, scheduler="plateau", log_style="delta"):
     from models import describe
-    opt = torch.optim.Adam(model.parameters(), lr=lr)
+    # AdamW: weight decay DECOUPLED from the gradient machinery,
+    # applied to matmul weights only (biases/BN gains stay free)
+    decay = [p for p in model.parameters() if p.dim() >= 2]
+    other = [p for p in model.parameters() if p.dim() < 2]
+    groups = [{"params": decay, "weight_decay":
+               weight_decay if optimizer == "adamw" else 0.0},
+              {"params": other, "weight_decay": 0.0}]
+    opt = (torch.optim.AdamW if optimizer == "adamw"
+           else torch.optim.Adam)(groups, lr=lr)
+    # scheduler: "plateau" drops lr x0.3 when val loss stalls 2 epochs;
+    # "cosine" glides to ~0 over the run; None keeps lr constant
+    sched = None
+    if scheduler == "plateau":
+        sched = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            opt, factor=0.3, patience=2)
+    elif scheduler == "cosine":
+        sched = torch.optim.lr_scheduler.CosineAnnealingLR(
+            opt, T_max=epochs)
     g = torch.Generator().manual_seed(SEED)
     n = len(X_train)
     n_batches = (n + batch - 1) // batch
 
     if log_style != "quiet":
         print(f"{describe(model)} | {type(loss_fn).__name__} | "
-              f"adam lr={lr:g} | {n:,} train / {len(X_val):,} val | "
-              f"batch size:{batch}, num:{n_batches:,} | "
+              f"{optimizer} lr={lr:g} wd={weight_decay:g} "
+              f"sched={scheduler} | {n:,} train / {len(X_val):,} val "
+              f"| batch size:{batch}, num:{n_batches:,} | "
               f"{X_train.device.type}")
     tty = sys.stdout.isatty()          # live bar only in a real terminal
 
@@ -103,6 +122,10 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
         dt = time.perf_counter() - t0
         tr_loss = run_loss / seen
         val_loss, val_acc = evaluate(model, loss_fn, X_val, y_val)
+        if sched is not None:
+            sched.step(val_loss) if scheduler == "plateau" \
+                else sched.step()
+        cur_lr = opt.param_groups[0]["lr"]
         history["train_loss"].append(tr_loss)
         history["val_loss"].append(val_loss)
         history["val_acc"].append(val_acc)
@@ -122,14 +145,14 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
                   f"val {val_loss:.3f} ({d('v', val_loss):+.3f}) | "
                   f"acc {val_acc:6.2%} ({d('a', val_acc):+.2%})"
                   f"{' *best' if is_best else '      '} | "
-                  f"{dt:4.1f}s | eta {eta:3.0f}s")
+                  f"lr {cur_lr:.0e} | {dt:4.1f}s | eta {eta:3.0f}s")
         elif log_style == "card":
             print(f"-- epoch {epoch}/{epochs} " + "-" * 28)
             print(f"   train loss {tr_loss:.4f}   val loss "
                   f"{val_loss:.4f}")
             print(f"   val acc    {val_acc:.2%}   best "
                   f"{best_acc:.2%} @{best_epoch}")
-            print(f"   lr {lr:.1e}   |grad| {gnorm:.3f}   "
+            print(f"   lr {cur_lr:.1e}   |grad| {gnorm:.3f}   "
                   f"{dt:.1f}s   {seen / dt:,.0f} img/s")
         elif log_style == "tqdm":
             print(f"epoch {epoch}/{epochs} done: train {tr_loss:.3f}, "

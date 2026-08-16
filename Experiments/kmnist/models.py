@@ -45,12 +45,18 @@ class MLP(nn.Module):
     exact failure the linear floor exposed on cursive KMNIST."""
 
     def __init__(self, d_in: int = 784, n_classes: int = 10,
-                 hidden=(512, 256, 128)):
+                 hidden=(512, 256, 128), dropout: float = 0.2,
+                 batchnorm: bool = True):
         super().__init__()
         dims = [d_in, *hidden]
         layers = []
         for a, b in zip(dims[:-1], dims[1:]):
-            layers += [nn.Linear(a, b), nn.ReLU()]
+            layers.append(nn.Linear(a, b))
+            if batchnorm:                    # unit-scale activations:
+                layers.append(nn.BatchNorm1d(b))   # per-batch, learned
+            layers.append(nn.ReLU())
+            if dropout:                      # regularize: random zeros
+                layers.append(nn.Dropout(dropout))  # (train mode only)
         layers.append(nn.Linear(dims[-1], n_classes))
         self.net = nn.Sequential(*layers)
 
