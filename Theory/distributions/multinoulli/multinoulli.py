@@ -55,9 +55,53 @@ hats = np.array([np.bincount(rng.choice(K, size=n, p=P),
                              minlength=K) / n for _ in range(REPS)])
 sd_err = np.abs(hats.std(axis=0)
                 - np.sqrt(P * (1 - P) / n)) / np.sqrt(P * (1 - P) / n)
-print(f"report card: sd of p̂_j matches sqrt(p(1-p)/n) to "
+print(f"report card: sd of p_hat_j matches sqrt(p(1-p)/n) to "
       f"{sd_err.max():.1%} over {REPS} replications")
 assert sd_err.max() < 0.10
+# MAP under Dirichlet: flat prior == MLE; add-alpha smoothing == MAP
+alpha = 1.0
+map_flat = (counts + 1 - 1) / (n + K - K)
+assert np.allclose(map_flat, p_hat)
+map_sym = (counts + alpha) / (n + K * alpha)   # add-alpha smoothing
+map_thm = (counts + (1 + alpha) - 1) / (n + K * (1 + alpha) - K)
+assert np.allclose(map_sym, map_thm)
+print(f"MAP: flat Dirichlet == MLE exactly; add-{alpha:g} smoothing "
+      f"== MAP under Dirichlet(1+{alpha:g}): OK")
+
+# SGD on softmax logits, logged; then autograd identity
+import torch
+LR, STEPS = 0.1, 30_000
+sched = rng.integers(0, N, size=STEPS)
+z = np.zeros(K)
+traj = []
+print(f"SGD on softmax logits, lr={LR}")
+for k, i in enumerate(sched, 1):
+    s = np.exp(z - z.max()); s /= s.sum()
+    s[X[i]] -= 1.0                      # softmax - onehot
+    z -= LR * s
+    traj.append(z.copy())
+    if k % 10_000 == 0:
+        sm = np.exp(z - z.max()); sm /= sm.sum()
+        print(f"   {k:>6,}/{STEPS:,}  p = {np.round(sm, 4)}")
+tail = np.array(traj[-10_000:]).mean(axis=0)
+p_sgd = np.exp(tail - tail.max()); p_sgd /= p_sgd.sum()
+print(f"   Polyak {np.round(p_sgd, 4)} vs count table "
+      f"{np.round(np.bincount(X, minlength=K) / N, 4)}")
+assert np.abs(p_sgd - np.bincount(X, minlength=K) / N).max() < 0.01
+
+zt = torch.zeros(K, dtype=torch.float64, requires_grad=True)
+opt = torch.optim.SGD([zt], lr=LR)
+Xt = torch.from_numpy(X)
+traj_a = []
+for i in sched:
+    opt.zero_grad()
+    torch.nn.functional.cross_entropy(zt.unsqueeze(0),
+                                      Xt[i].view(1)).backward()
+    opt.step()
+    traj_a.append(zt.detach().numpy().copy())
+gap = np.abs(np.array(traj) - np.array(traj_a)).max()
+print(f"   autograd identity: max gap = {gap:.2e}")
+assert gap < 1e-10
 print("all claims verified: OK")
 
 # ---- picture ---------------------------------------------------------

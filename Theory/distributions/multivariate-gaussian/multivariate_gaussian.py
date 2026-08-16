@@ -83,6 +83,39 @@ factor = np.mean([np.cov(rng.multivariate_normal(MU, SIGMA, n_small).T,
 print(f"MLE bias: E[Sigma_hat]/Sigma at n=5 -> {factor:.3f} "
       f"(theory (n-1)/n = {(n_small - 1) / n_small:.3f})")
 assert abs(factor - (n_small - 1) / n_small) < 0.02
+# MAP for the mean: matrix precision-weighted average (flat-prior limit)
+Si = np.linalg.inv(SIGMA)
+Ti = np.linalg.inv(np.eye(2) * 1e9)          # nearly flat prior
+xb = X.mean(axis=0)
+mu_map = np.linalg.solve(N * Si + Ti, N * Si @ xb + Ti @ np.zeros(2))
+assert np.abs(mu_map - xb).max() < 1e-6
+print(f"MAP (flat prior) == MLE mean: OK")
+
+# gradient descent on (mu, Cholesky) recovers the MLE
+import torch
+Xt = torch.from_numpy(X[:20_000])
+mu_t = torch.zeros(2, dtype=torch.float64, requires_grad=True)
+l_t = torch.zeros(3, dtype=torch.float64, requires_grad=True)
+opt = torch.optim.Adam([mu_t, l_t], lr=0.05)
+print("descend: Adam on (mu, log-Cholesky), 400 steps")
+for k in range(400):
+    L = torch.zeros(2, 2, dtype=torch.float64)
+    L = L + torch.diag(torch.exp(l_t[:2]))
+    L = L + torch.tensor([[0.0, 0.0], [1.0, 0.0]]) * l_t[2]
+    z = torch.linalg.solve_triangular(L, (Xt - mu_t).T, upper=False)
+    F = l_t[:2].sum() + 0.5 * (z ** 2).sum(0).mean()
+    opt.zero_grad(); F.backward(); opt.step()
+    if (k + 1) % 100 == 0:
+        print(f"   step {k+1:>3}  NLL-part {F.item():.4f}")
+with torch.no_grad():
+    L = torch.diag(torch.exp(l_t[:2])) \
+        + torch.tensor([[0.0, 0.0], [1.0, 0.0]]) * l_t[2]
+    Sig_fit = (L @ L.T).numpy()
+mu_err = np.abs(mu_t.detach().numpy() - X[:20_000].mean(0)).max()
+S_err = np.abs(Sig_fit - np.cov(X[:20_000].T, bias=True)).max()
+print(f"   |mu - xbar| = {mu_err:.4f},  |LL^T - Sigma_hat| = "
+      f"{S_err:.4f}")
+assert mu_err < 0.02 and S_err < 0.05
 print("all claims verified: OK")
 
 # ---- picture ---------------------------------------------------------

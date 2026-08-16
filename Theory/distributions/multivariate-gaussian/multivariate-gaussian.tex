@@ -71,4 +71,35 @@ eaten one degree of freedom) --- the 1D gaussian folder's lesson as a
 matrix statement, measured at $n = 5$: empirical factor $0.80$ against
 $(n-1)/n = 0.8$.
 
+\paragraph{MAP for the mean.} With $\Sigma$ known and prior
+$\mu \sim \mathcal{N}(\mu_0, T)$, the log-posterior is, up to a
+constant, $-\tfrac12 \sum_i (x_i-\mu)^{\!\top}\Sigma^{-1}(x_i-\mu)
+- \tfrac12 (\mu-\mu_0)^{\!\top} T^{-1} (\mu-\mu_0)$; its gradient in
+$\mu$ vanishes at
+\begin{equation}
+  \boxed{\;\hat\mu_{\mathrm{MAP}}
+  = \bigl(n\Sigma^{-1} + T^{-1}\bigr)^{-1}
+    \bigl(n\Sigma^{-1}\bar x + T^{-1}\mu_0\bigr)\;}
+  \label{eq:map}
+\end{equation}
+--- the matrix precision-weighted average, reducing to the scalar
+formula of the gaussian folder coordinate-wise when everything is
+diagonal, to $\bar x$ as $T \to \infty$, and to the prior as
+$n \to 0$. (The joint conjugate for $(\mu, \Sigma)$ is the
+Normal--inverse-Wishart family; its mode shifts the scatter matrix by
+the prior scale in direct analogy.)
+
+\paragraph{Numerical solution by gradient descent.} Parameterize
+$\mu \in \mathbb{R}^d$ freely and $\Sigma = LL^{\!\top}$ through a
+lower-triangular $L$ with positive diagonal (the Cholesky factor,
+diagonal kept positive as $e^{\ell_{jj}}$), and minimize the average
+negative log-likelihood
+$F(\mu, L) = \sum_j \ell_{jj}
++ \tfrac12\,\overline{\|L^{-1}(x-\mu)\|^2} + \text{const}$.
+The objective is smooth and unconstrained; automatic differentiation
+descends it, and the companion program verifies that the optimum
+recovers \eqref{eq:mle} --- $\hat\mu = \bar x$ and
+$\widehat{LL^{\!\top}} = \hat\Sigma$ --- to the tolerance of the
+optimizer.
+
 \end{document}
