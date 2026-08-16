@@ -27,7 +27,14 @@ equations are transcendental --- the first model in this collection with
 \emph{no closed form} --- yet the loss is convex, Newton's method (IRLS)
 solves it in a handful of weighted least-squares steps, the fitted
 classifier approaches the Bayes floor, and on separable data the MLE
-fails to exist. All demonstrated in \texttt{logistic.py}.
+fails to exist. All demonstrated in the companion scripts, one solver
+per file over a shared \texttt{common.py}: \texttt{logistic\_sgd.py}
+(the per-sample loop, logged, with the autograd identity check),
+\texttt{logistic\_gd.py} (full gradient; geometric decay of
+$\|\nabla\|$ in the log; the separable-data divergence),
+\texttt{logistic\_newton.py} (Newton/IRLS; watch $\|\nabla\|$ square
+away in eight rows), and \texttt{logistic\_animation.py} (the SGD
+film). Each ends with a held-out classification report.
 \end{abstract}
 
 \section{The conditional-Bernoulli view}

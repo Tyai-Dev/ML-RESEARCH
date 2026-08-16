@@ -1,4 +1,4 @@
-This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.8.8)  10 AUG 2026 19:19
+This is pdfTeX, Version 3.141592653-2.6-1.40.29 (MiKTeX 26.5) (preloaded format=pdflatex 2026.8.8)  16 AUG 2026 13:35
 entering extended mode
  restricted \write18 enabled.
  %&-line parsing enabled.
@@ -357,10 +357,10 @@ Package rerunfilecheck Info: File `logistic-regression.out' has not changed.
 (rerunfilecheck)             Checksum: 34F601DDC4258661B353E605E354D0C3;882.
  ) 
 Here is how much of TeX's memory you used:
- 9488 strings out of 467510
- 143861 string characters out of 5418904
- 576385 words of memory out of 5000000
- 38617 multiletter control sequences out of 15000+600000
+ 9489 strings out of 467510
+ 143879 string characters out of 5418904
+ 578385 words of memory out of 5000000
+ 38618 multiletter control sequences out of 15000+600000
  640029 words of font info for 88 fonts, out of 8000000 for 9000
  1141 hyphenation exceptions out of 8191
  74i,6n,79p,558b,455s stack positions out of 10000i,1000n,20000p,200000b,200000s
@@ -380,7 +380,7 @@ Program Files/MiKTeX/fonts/type1/public/amsfonts/cm/cmsy7.pfb><C:/Program Files
 /type1/public/amsfonts/cm/cmti10.pfb><C:/Program Files/MiKTeX/fonts/type1/publi
 c/amsfonts/cm/cmtt10.pfb><C:/Program Files/MiKTeX/fonts/type1/public/amsfonts/s
 ymbols/msbm10.pfb>
-Output written on logistic-regression.pdf (3 pages, 234970 bytes).
+Output written on logistic-regression.pdf (3 pages, 236280 bytes).
 PDF statistics:
  153 PDF objects out of 1000 (max. 8388607)
  22 named destinations out of 1000 (max. 500000)
