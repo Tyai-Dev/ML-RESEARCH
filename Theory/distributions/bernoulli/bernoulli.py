@@ -122,6 +122,13 @@ for i in schedule:
 gap = np.abs(np.array(traj) - np.array(traj_auto)).max()
 print(f"   autograd identity: max |hand - autograd| = {gap:.2e}")
 assert gap < 1e-10
+# information theory: NLL(q) = H(xbar) + KL(xbar || q), any q
+xb, q = x.mean(), 0.42
+H = lambda a: -a * np.log(a) - (1 - a) * np.log(1 - a)
+KL = xb * np.log(xb / q) + (1 - xb) * np.log((1 - xb) / (1 - q))
+assert abs(nll(q) - (H(xb) + KL)) < 1e-12
+print(f"   info: NLL(q) = H(xbar) + KL(xbar||q) to 1e-12 "
+      f"(MLE = KL minimization)")
 print("all claims verified: OK")
 
 # ----------------------------------------------------------------------

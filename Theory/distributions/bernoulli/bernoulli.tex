@@ -133,30 +133,6 @@ Let $x_1, \dots, x_n$ be an i.i.d.\ sample from
 $\mathrm{Bernoulli}(p)$ and write $m = \sum_i x_i$ for the number of
 successes.
 
-\begin{definition}[Score and Fisher information]
-The \emph{score} is the derivative of the log-likelihood of one
-observation,
-\begin{equation}
-  s(p; x) \;=\; \frac{\partial}{\partial p} \log f(x; p)
-  \;=\; \frac{x - p}{p(1-p)},
-  \label{eq:score}
-\end{equation}
-and the \emph{Fisher information} is its variance. The two classical
-identities hold:
-\begin{equation}
-  \E[s(p; X)] = 0,
-  \qquad
-  I(p) \;=\; \Var\bigl(s(p; X)\bigr)
-        \;=\; -\E\Bigl[\tfrac{\partial^2}{\partial p^2}
-              \log f(X; p)\Bigr]
-        \;=\; \frac{1}{p(1-p)}.
-  \label{eq:fisher}
-\end{equation}
-Information is largest at the certain ends and smallest at
-$p = \tfrac12$: an observation is most informative where outcomes are
-most surprising.
-\end{definition}
-
 \begin{proposition}[Sufficiency]
 The likelihood depends on the data only through $m$:
 \begin{equation}
@@ -236,7 +212,9 @@ the MLE of $g(p)$ is $g(\phat)$, at the price of bias of order
 $1/n$.)
 \end{remark}
 
-\section{Maximum likelihood estimation}
+\section{Maximum likelihood and maximum a posteriori estimation}
+
+\subsection{Maximum likelihood}
 
 \begin{theorem}[MLE]
 \label{thm:mle}
@@ -273,7 +251,7 @@ supremum is attained at the boundary point $m/n$; formula
 \eqref{eq:mle} remains valid.
 \end{remark}
 
-\section{Maximum a posteriori estimation}
+\subsection{Maximum a posteriori}
 
 \begin{proposition}[Conjugacy]
 Let $p \sim \mathrm{Beta}(\alpha, \beta)$, i.e.\
@@ -296,9 +274,25 @@ For $m + \alpha > 1$ and $n - m + \beta > 1$, the posterior mode is
 \end{theorem}
 
 \begin{proof}
-The posterior has the functional form of a likelihood
-\eqref{eq:lik} with counts $m' = m + \alpha - 1$ and
-$n' = n + \alpha + \beta - 2$; apply Theorem~\ref{thm:mle}.
+The log-posterior is, up to an additive constant not involving $p$,
+\begin{equation*}
+  \log \pi(p \mid x_{1:n})
+  \;=\; (m + \alpha - 1)\log p \;+\; (n - m + \beta - 1)\log(1 - p)
+  \;+\; C.
+\end{equation*}
+Differentiating and equating to zero,
+\begin{equation*}
+  \frac{\partial}{\partial p}\log \pi(p \mid x_{1:n})
+  \;=\; \frac{m + \alpha - 1}{p} - \frac{n - m + \beta - 1}{1 - p}
+  \;=\; 0,
+\end{equation*}
+so $(m + \alpha - 1)(1 - p) = (n - m + \beta - 1)\,p$, i.e.\
+$m + \alpha - 1 = p\,(n + \alpha + \beta - 2)$, which is
+\eqref{eq:map}. The second derivative
+$-(m{+}\alpha{-}1)/p^2 - (n{-}m{+}\beta{-}1)/(1{-}p)^2$ is negative
+under the stated conditions, so the stationary point is the unique
+maximum --- the same concavity argument as Theorem~\ref{thm:mle},
+with the prior's pseudo-counts joining the data's.
 \end{proof}
 
 \begin{remark}[Interpretation and limits]
@@ -313,6 +307,65 @@ $n = 20$ with $\mathrm{Beta}(3,3)$ the MAP mean squared error is
 $0.0085$ against the MLE's $0.0105$ ($2 \times 10^4$ replications).
 Additive (Laplace) smoothing of categorical counts is precisely the
 multinoulli analog of \eqref{eq:map} under a Dirichlet prior.
+\end{remark}
+
+\section{Information theory}
+
+\begin{definition}[Score and Fisher information]
+The \emph{score} is the derivative of the log-likelihood of one
+observation,
+\begin{equation}
+  s(p; x) \;=\; \frac{\partial}{\partial p} \log f(x; p)
+  \;=\; \frac{x - p}{p(1-p)},
+  \label{eq:score}
+\end{equation}
+and the \emph{Fisher information} is its variance. The two classical
+identities hold:
+\begin{equation}
+  \E[s(p; X)] = 0,
+  \qquad
+  I(p) \;=\; \Var\bigl(s(p; X)\bigr)
+        \;=\; -\E\Bigl[\tfrac{\partial^2}{\partial p^2}
+              \log f(X; p)\Bigr]
+        \;=\; \frac{1}{p(1-p)}.
+  \label{eq:fisher}
+\end{equation}
+Information is largest at the certain ends and smallest at
+$p = \tfrac12$: an observation is most informative where outcomes are
+most surprising.
+\end{definition}
+
+\begin{definition}[Entropy, cross-entropy, KL divergence]
+\begin{equation}
+  H(p) = -p\log p - (1-p)\log(1-p),
+  \qquad
+  H(p, q) = -p\log q - (1-p)\log(1-q),
+\end{equation}
+\begin{equation}
+  \mathrm{KL}(p \,\|\, q)
+  \;=\; p \log\frac{p}{q} + (1-p)\log\frac{1-p}{1-q}
+  \;=\; H(p, q) - H(p) \;\ge\; 0,
+  \label{eq:kl}
+\end{equation}
+with equality iff $q = p$ (Gibbs' inequality;
+Theory/information-theory).
+\end{definition}
+
+\begin{remark}[Estimation as information minimization]
+The average negative log-likelihood of Section~5 satisfies
+$\mathcal{L}(q) = H(\xbar, q) = H(\xbar) + \mathrm{KL}(\xbar \| q)$:
+maximizing likelihood is minimizing the cross-entropy between the
+empirical distribution and the model, hence the KL divergence ---
+which \eqref{eq:kl} shows is achieved exactly at $q = \xbar$, a
+one-line second proof of Theorem~\ref{thm:mle}.
+\end{remark}
+
+\begin{remark}[Jeffreys prior]
+The information-geometric default prior
+$\pi(p) \propto \sqrt{I(p)} = p^{-1/2}(1-p)^{-1/2}$ is
+$\mathrm{Beta}(\tfrac12, \tfrac12)$: the invariant reference prior is
+a member of the conjugate family of Section~3, tying the two sections
+together.
 \end{remark}
 
 \section{Numerical solution by stochastic gradient descent}
