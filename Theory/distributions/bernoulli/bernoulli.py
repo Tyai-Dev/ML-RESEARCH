@@ -56,7 +56,7 @@ grid = np.linspace(0.001, 0.999, 100_000)
 loglik = m * np.log(grid) + (N - m) * np.log(1 - grid)
 se = np.sqrt(p_mle * (1 - p_mle) / N)
 print("\n2. ESTIMATE")
-print(f"   MLE  p̂ = m/n = {p_mle:.4f}   (brute-force argmax "
+print(f"   MLE  p_hat = m/n = {p_mle:.4f}   (brute-force argmax "
       f"{grid[loglik.argmax()]:.4f})")
 print(f"   95% CI [{p_mle - 1.96 * se:.4f}, {p_mle + 1.96 * se:.4f}]"
       f"   contains p: {abs(p_mle - P_TRUE) < 1.96 * se}")
