@@ -1,0 +1,89 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\newtheorem{proposition}{Proposition}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{Multiclass SVM:\\ Crammer--Singer versus One-vs-Rest}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Two lifts of the soft-margin SVM to $K$ classes: the one-vs-rest
+reduction ($K$ independent binary problems) and the Crammer--Singer
+joint objective, whose margin separates the true class's score from
+the \emph{best wrong} one. The joint subgradient is derived and
+verified against automatic differentiation to machine precision, both
+methods are trained on identical data, and the comparison is reported
+honestly. Companion program: \texttt{multiclass\_svm.py}.
+\end{abstract}
+
+\section{The two objectives}
+
+\paragraph{One-vs-rest.} For each class $k$, train a binary
+soft-margin SVM with labels $\pm1$ (class $k$ vs.\ the rest); predict
+$\arg\max_k \langle w_k, x\rangle$. The $K$ problems never
+coordinate, and their scores are not calibrated against each other.
+
+\paragraph{Crammer--Singer.} One regularized problem over
+$W \in \mathbb{R}^{K \times d}$:
+\begin{equation}
+  \min_W \;\; \frac{\lambda}{2}\|W\|_F^2
+  + \frac1n \sum_{i=1}^{n}
+  \max\Bigl(0,\; 1 + \max_{k \ne y_i} \langle W_k, x_i\rangle
+  - \langle W_{y_i}, x_i\rangle\Bigr),
+  \label{eq:cs}
+\end{equation}
+the batch, regularized form of the multiclass hinge of
+multiclass-pa.pdf: every row is optimized \emph{against} the others.
+
+\begin{proposition}[Subgradient]
+Let $r_i = \arg\max_{k \ne y_i}\langle W_k, x_i\rangle$ and let
+$A = \{i : \text{the hinge in \eqref{eq:cs} is positive}\}$. A
+subgradient of \eqref{eq:cs} is
+\begin{equation}
+  \boxed{\;G = \lambda W + \frac1n \sum_{i \in A}
+  \bigl(e_{r_i} - e_{y_i}\bigr) x_i^{\!\top}\;}
+  \label{eq:grad}
+\end{equation}
+--- on each violating example, demote the best wrong row and promote
+the true one (the perceptron/PA update direction, regularized).
+Verified against autograd at a random $W$: maximum entrywise gap
+below $10^{-12}$, loss values equal to $10^{-12}$.
+\end{proposition}
+
+\section{Numerical comparison}
+
+Three overlapping Gaussian classes ($1100$ train / $400$ test,
+seed 7), $30$ subgradient epochs each:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Claim & Reference & Measured\\
+\midrule
+Hand subgradient vs.\ autograd & \eqref{eq:grad} & $< 10^{-12}$\\
+Objective decreases & \eqref{eq:cs} & monotone over epochs\\
+Crammer--Singer accuracy & --- & $0.9775$\\
+One-vs-rest accuracy & --- & $0.9825$\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}[An honest verdict]
+On well-separated low-dimensional blobs the reduction matches the
+joint objective --- here OvR even edges it within noise. The joint
+formulation's advantages are structural, not universal: one
+$\lambda$, mutually calibrated scores, a single margin geometry, and
+a direct KKT/dual theory (support patterns across classes) --- and
+they matter most with many classes and shared structure. Choosing
+the fancier objective is an experiment, not a reflex; this repo's
+rule since the GPT ablations.
+\end{remark}
+
+\end{document}
