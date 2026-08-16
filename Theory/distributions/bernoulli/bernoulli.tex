@@ -1,0 +1,123 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\newtheorem{proposition}{Proposition}
+\newtheorem{remark}{Remark}
+\newcommand{\xbar}{\bar{x}}
+\newcommand{\phat}{\hat{p}}
+
+\title{The Bernoulli Distribution:\\
+Object, Statistics, MLE and MAP, and the Descent to ML}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{The distribution}
+
+$X \sim \mathrm{Bernoulli}(p)$: support $\{0,1\}$, pmf
+$f(x;p) = p^x (1-p)^{1-x}$ (a case split written as one expression),
+$\mathbb{E}[X] = p$, $\mathrm{Var}(X) = p(1-p)$ --- maximal at
+$p = \tfrac12$, vanishing at the certain ends. For an i.i.d.\ sample
+$x_1..x_n$ with $m = \sum_i x_i$ ones,
+\begin{equation}
+  L(p) = \prod_i p^{x_i}(1-p)^{1-x_i} = p^m (1-p)^{n-m}:
+  \label{eq:lik}
+\end{equation}
+the data enters only through the count $m$ --- a \emph{sufficient
+statistic}. Verified by sampling in \texttt{bernoulli.py} (part 1).
+
+\section{Statistics of the estimator}
+
+The estimator below will be $\phat = m/n = \xbar$; it is a random
+variable, judged by its distribution:
+\textbf{unbiased} ($\mathbb{E}[\phat] = p$, since
+$m \sim \mathrm{Binomial}(n,p)$); \textbf{variance}
+$p(1-p)/n$, whose square root is the standard error; \textbf{efficient}
+--- the Fisher information per sample is $I(p) = 1/(p(1-p))$, so the
+Cram\'er--Rao bound $1/(nI(p)) = p(1-p)/n$ is attained with equality
+(Theory/statistics); \textbf{MSE} $=$ variance (unbiasedness);
+\textbf{consistent} ($\phat \to p$: the LLN); \textbf{asymptotically
+normal}, $\sqrt{n}(\phat - p) \to \mathcal{N}(0, p(1-p))$, buying the
+$95\%$ interval $\phat \pm 1.96\sqrt{\phat(1-\phat)/n}$.
+
+\section{MLE and MAP}
+
+\paragraph{MLE.} Take logs of \eqref{eq:lik} (monotone, so the argmax
+stays): $\ell(p) = m \log p + (n-m)\log(1-p)$. Then
+$\ell'(p) = m/p - (n-m)/(1-p) = 0 \Rightarrow m(1-p) = (n-m)p
+\Rightarrow m = np$:
+\begin{equation}
+  \boxed{\;\phat_{\mathrm{MLE}} = \frac{m}{n} = \xbar\;}
+  \label{eq:mle}
+\end{equation}
+unique ($\ell'' < 0$: strict concavity); at the edge cases $m \in
+\{0, n\}$ the supremum sits on the boundary and the formula survives.
+
+\paragraph{MAP: the prior as pseudo-counts.} Give $p$ a
+$\mathrm{Beta}(\alpha, \beta)$ prior, $\pi(p) \propto
+p^{\alpha-1}(1-p)^{\beta-1}$. The posterior multiplies pmf and prior:
+\begin{equation*}
+  \pi(p \mid x) \;\propto\; p^{m + \alpha - 1}(1-p)^{n - m + \beta - 1}
+  \;=\; \mathrm{Beta}(m + \alpha,\; n - m + \beta)
+\end{equation*}
+--- the same functional form (Beta is \emph{conjugate} to Bernoulli),
+so maximizing it is the MLE computation with shifted counts:
+\begin{equation}
+  \boxed{\;\phat_{\mathrm{MAP}}
+  = \frac{m + \alpha - 1}{n + \alpha + \beta - 2}\;}
+  \label{eq:map}
+\end{equation}
+Read it as \emph{pseudo-counts}: the prior contributes $\alpha - 1$
+imaginary ones and $\beta - 1$ imaginary zeros before any data
+arrives. Three consequences, all verified in the script:
+$\alpha = \beta = 1$ (flat prior) recovers the MLE exactly;
+as $n \to \infty$ the data drowns the prior and
+$\phat_{\mathrm{MAP}} \to \phat_{\mathrm{MLE}}$; and at SMALL $n$ the
+shrinkage toward the prior mean trades a little bias for a lot of
+variance --- measured, MAP beats MLE in MSE on tiny samples.
+
+\begin{remark}[We have been doing MAP all along]
+Laplace/add-$\alpha$ smoothing --- used since the bigram model and the
+BPE evaluation (Generative/text-to-text) --- \emph{is}
+\eqref{eq:map}'s multinoulli analog with a Dirichlet prior: smoothing
+is not a hack, it is a prior confessed.
+\end{remark}
+
+\section{Solving the MLE with SGD}
+
+The ML translation: normalize and negate $\ell$ (neither moves the
+optimizer) into the average NLL
+$\mathcal{L}(p) = -\xbar\log p - (1-\xbar)\log(1-p)$, then free the
+constrained $p \in (0,1)$ through the sigmoid --- the SAME objective in
+a new coordinate, $F(t) = \mathcal{L}(\sigma(t))$. The chain rule
+collapses to
+\begin{equation}
+  \boxed{\;F'(t) = \sigma(t) - \xbar, \qquad
+  g_i(t) = \sigma(t) - x_i\;}
+  \label{eq:grad}
+\end{equation}
+(full and per-sample gradients: residuals). SGD steps
+$t \leftarrow t - \eta\, g_i(t)$ one sample at a time: unbiased
+($\mathbb{E}_i[g_i] = F'$), cheap, and with constant $\eta$ it never
+converges --- it hovers in a noise ball, cured by Polyak--Ruppert
+averaging of the final epoch. $F'' = \sigma' > 0$: one basin. By MLE
+\emph{invariance}, $\hat p = \sigma(\hat t\,)$ --- the reparameterization
+is harmless. (Autograd on
+\texttt{binary\_cross\_entropy\_with\_logits} reproduces
+\eqref{eq:grad} to machine precision --- checked in the script, the
+repo's standard proof by computation.)
+
+\section{Experiment}
+
+\texttt{bernoulli.py}, $p = 0.3$, seed 7: sampling verifies both
+moments to $10^{-3}$; the closed form gives $\phat = 0.2978$
+($n = 5000$), matching a brute-force argmax and covered by its $95\%$
+interval; MAP with $\mathrm{Beta}(3,3)$ at $n = 20$ beats the MLE's
+MSE (measured over $20{,}000$ replications) and coincides with it to
+$10^{-3}$ by $n = 5000$; the logged SGD loop descends to the noise
+ball and the Polyak average lands within $10^{-3}$ of $\xbar$, with
+the autograd trajectory identical to the hand loop.
+
+\end{document}
