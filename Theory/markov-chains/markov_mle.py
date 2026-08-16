@@ -12,7 +12,7 @@ The estimator. For paths x^(r) = (x_1..x_T), r = 1..R, the likelihood
 
 separates into independent multinoulli problems (the log turns the
 products into sums; no term couples two rows of P, nor P with pi0), so
-by the count argument of text-to-text/bigram.tex, boxed in markov-chains.tex:
+by the count argument of Generative/text-to-text/bigram.tex, boxed in markov-chains.tex:
 
     P̂_ij   = n_ij / n_i        (transition counts, row-normalized)
     pî0(i) = #{r : x_1^r = i} / R   (first states — needs MANY paths;

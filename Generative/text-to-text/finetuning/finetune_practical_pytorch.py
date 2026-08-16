@@ -31,7 +31,7 @@ The animation: the finetune and scratch loss curves racing under the
 zero-shot line, while samples from the finetuned model morph from
 blank-verse dialogue toward drawing-room prose.
 
-Run me with F5 (needs text-to-text/gpt/gpt_checkpoint.pt — run gpt_train.py
+Run me with F5 (needs Generative/text-to-text/gpt/gpt_checkpoint.pt — run gpt_train.py
 first). Discussion: finetuning.tex.
 """
 
@@ -119,7 +119,7 @@ def train(model, tr_t, va_t, cfg, device, lr, tag):
 
 
 if __name__ == "__main__":
-    assert CKPT.exists(), "run text-to-text/gpt/gpt_train.py first (checkpoint)"
+    assert CKPT.exists(), "run Generative/text-to-text/gpt/gpt_train.py first (checkpoint)"
     _, _, chars, stoi, itos = load_everything()   # Shakespeare vocab
     ITOS = itos
     device = get_device()

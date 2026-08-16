@@ -8,7 +8,7 @@ what makes "each rung must beat the last" a checkable claim rather than
 a slogan.
 
 Corpus: Tiny Shakespeare (~1.1MB of plays, public domain), modeled at
-the character level. Auto-downloads to text-to-text/data/ on first use.
+the character level. Auto-downloads to Generative/text-to-text/data/ on first use.
 """
 
 import os
@@ -49,7 +49,7 @@ def load_corpus(corpus: str = None) -> str:
         urllib.request.urlretrieve(_DATA_URL, path)
     if not os.path.exists(path):
         raise FileNotFoundError(
-            f"{path} missing - run text-to-text/data/prepare_datasets.py first")
+            f"{path} missing - run Generative/text-to-text/data/prepare_datasets.py first")
     with open(path, encoding="utf-8") as f:
         return f.read()
 

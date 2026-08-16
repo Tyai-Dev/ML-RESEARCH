@@ -1,6 +1,6 @@
 r"""Why counting dies — the measurement that forces rung 2.
 
-Rung 1 (text-to-text/bigram) proved that with ONE character of context, the MLE
+Rung 1 (Generative/text-to-text/bigram) proved that with ONE character of context, the MLE
 is a count table and nothing can beat it on the training set. The
 obvious next move is more context: model P(next | previous k chars) by
 counting k-grams. This script does exactly that, honestly, for

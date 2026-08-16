@@ -18,10 +18,10 @@ Algorithms/       how to fit, on clean synthetic data
                       variants inside) and multiclass/ (softmax)
   ranking/            planned (PRank)
   autoencoders/       planned
-Experiments/      algorithms meet real data (mnist/)
-text-to-text/     the generative text track (bigram → GPT ladder, BPE,
-                  finetuning, scaling, chat); text-to-image/, text-to-audio/,
-                  text-to-video/ reserved for future modality tracks
+Experiments/      algorithms meet real data, bounded studies (mnist/)
+Generative/       long-running generative modality tracks
+  text-to-text/       bigram → GPT ladder, BPE, finetuning, scaling, chat
+  text-to-image/      reserved        text-to-audio/  text-to-video/  reserved
 datasets/         shared loaders (MNIST from raw IDX bytes)
 ```
 
@@ -78,20 +78,20 @@ must numerically beat the last:
 
 | Rung | Model | val NLL (nats/char) | PPL |
 |---|---|---|---|
-| `text-to-text/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
-| `text-to-text/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
-| `text-to-text/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
-| `text-to-text/gpt/` | Full decoder assembled from the verified parts: 4 blocks, T=128, 3.21M params, weight tying, AdamW + warmup/cosine + clipping (each ablated — verdict: insurance, not magic); 2.3 min on the 4070 | 1.4724 | **4.36** |
+| `Generative/text-to-text/bigram/` | Conditional multinoulli: counts = MLE = GD = SGD(Polyak) = autograd, all verified equal | 2.4819 (Laplace α=1) | **11.96** |
+| `Generative/text-to-text/ngram-mlp/` | Counting dies (U-turn measured: k=3 sweet spot, k=5 worse than bigram) → embeddings + tanh MLP (Bengio 2003), backprop by hand == autograd to 1e-16 | 1.7583 | **5.80** |
+| `Generative/text-to-text/attention/` | Attention derived + hand forward/backward == autograd to 1e-16 (causality proven by perturbation); one transformer block, T=64 | 1.6254 | **5.08** |
+| `Generative/text-to-text/gpt/` | Full decoder assembled from the verified parts: 4 blocks, T=128, 3.21M params, weight tying, AdamW + warmup/cosine + clipping (each ablated — verdict: insurance, not magic); 2.3 min on the 4070 | 1.4724 | **4.36** |
 
-**Talk to them**: `text-to-text/chat/chat.py` (F5) is one REPL over every model — pick a rung with `/model`, type a line, and it becomes part of a play the model continues autoregressively. Models build on first selection and cache to `text-to-text/chat/checkpoints/`; switching rungs mid-conversation lets you *feel* the ladder (the bigram babbles no matter what you say; the GPT answers in blank verse; `gpt-austen` switches to drawing-room prose).
+**Talk to them**: `Generative/text-to-text/chat/chat.py` (F5) is one REPL over every model — pick a rung with `/model`, type a line, and it becomes part of a play the model continues autoregressively. Models build on first selection and cache to `Generative/text-to-text/chat/checkpoints/`; switching rungs mid-conversation lets you *feel* the ladder (the bigram babbles no matter what you say; the GPT answers in blank verse; `gpt-austen` switches to drawing-room prose).
 
 Beyond the ladder (same measuring stick — NLL per **char**, so tokenizers stay comparable):
 
 | Folder | Experiment | Headline number |
 |---|---|---|
-| `text-to-text/tokenization/` | BPE by hand (lossless roundtrip asserted; vocab rediscovers ' the', '\n\n', 'ICHARD'); rung-4 GPT on 515 tokens overfits on schedule → early stopping enters | chars win: 1.5165 vs 1.4724 — data, not context, is the bottleneck |
-| `text-to-text/finetuning/` | Shakespeare checkpoint → Austen: zero-shot 1.7341, finetune (lr 1e-4) 1.0978, identical-budget scratch 1.2393 | pretraining worth 0.14 nats/char |
-| `text-to-text/scaling/` | Param sweep (0.2M–8M) vs data sweep (10%–100%) under a fixed budget | param gains stall + overfit gap grows; every data doubling still pays — data-limited regime, measured |
+| `Generative/text-to-text/tokenization/` | BPE by hand (lossless roundtrip asserted; vocab rediscovers ' the', '\n\n', 'ICHARD'); rung-4 GPT on 515 tokens overfits on schedule → early stopping enters | chars win: 1.5165 vs 1.4724 — data, not context, is the bottleneck |
+| `Generative/text-to-text/finetuning/` | Shakespeare checkpoint → Austen: zero-shot 1.7341, finetune (lr 1e-4) 1.0978, identical-budget scratch 1.2393 | pretraining worth 0.14 nats/char |
+| `Generative/text-to-text/scaling/` | Param sweep (0.2M–8M) vs data sweep (10%–100%) under a fixed budget | param gains stall + overfit gap grows; every data doubling still pays — data-limited regime, measured |
 
 ## Theory (reference pages)
 

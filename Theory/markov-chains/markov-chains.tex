@@ -84,7 +84,7 @@ only on $Y_t$. Hence $Y$ satisfies \eqref{eq:markovprop} on $S^k$.
 
 This proposition is why ``$n$-gram model'' and ``Markov chain'' are the
 same mathematics, and why the $k$-gram count table has $V^k$ rows (the
-curse measured in \texttt{text-to-text/ngram-mlp}). Verified numerically on
+curse measured in \texttt{Generative/text-to-text/ngram-mlp}). Verified numerically on
 real data: the trigram ($k=2$) log-likelihood of the Shakespeare
 corpus computed directly and via the lifted pair-state chain agree to
 $10^{-6}$ absolute --- term for term the same sum.
@@ -147,7 +147,7 @@ pooled over paths) and first-state counts $f_i$:
 No term couples two rows of $P$, or $P$ with $\pi_0$: the problem
 separates into $V{+}1$ independent multinoulli MLEs, each solved by
 the count-and-normalize argument (Lagrange proof in
-\texttt{text-to-text/bigram.tex}, Gibbs optimality in
+\texttt{Generative/text-to-text/bigram.tex}, Gibbs optimality in
 \texttt{Theory/information-theory}):
 \begin{equation}
   \boxed{\;\hat{P}_{ij} \;=\; \frac{n_{ij}}{n_i},
@@ -215,7 +215,7 @@ chain fitted to one long path, the empirical transition counts form a
 flow that enters and leaves every state equally often (up to the two
 path endpoints), so the letter-frequency vector is \emph{almost
 exactly} stationary for $\hat P$. Measured on Shakespeare
-(\texttt{text-to-text/bigram}'s $65 \times 65$ chain): the leading left
+(\texttt{Generative/text-to-text/bigram}'s $65 \times 65$ chain): the leading left
 eigenvector of $\hat P$ matches the empirical character frequencies to
 $1.0\times10^{-6}$ --- an eigenvector of a $65\times65$ matrix
 predicting the histogram of a million characters.
