@@ -111,9 +111,14 @@ Conjugate prior & $\mathrm{Beta}(\alpha, \beta)$\\
 \end{tabular}
 \end{center}
 
+\section{Statistics of the estimator}
+
+Let $x_1, \dots, x_n$ be an i.i.d.\ sample from
+$\mathrm{Bernoulli}(p)$ and write $m = \sum_i x_i$ for the number of
+successes.
+
 \begin{proposition}[Sufficiency]
-For an i.i.d.\ sample $x_1, \dots, x_n$ with $m = \sum_{i} x_i$, the
-likelihood depends on the data only through $m$:
+The likelihood depends on the data only through $m$:
 \begin{equation}
   L(p) \;=\; \prod_{i=1}^{n} p^{x_i}(1-p)^{1-x_i}
         \;=\; p^{m}(1-p)^{n-m}.
@@ -122,8 +127,6 @@ likelihood depends on the data only through $m$:
 By the factorization criterion, $m$ (equivalently $\xbar = m/n$) is a
 sufficient statistic for $p$.
 \end{proposition}
-
-\section{Statistics of the estimator}
 
 Throughout, $\phat = m/n$ denotes the sample mean; its sampling
 properties follow from $m \sim \mathrm{Binomial}(n, p)$.
