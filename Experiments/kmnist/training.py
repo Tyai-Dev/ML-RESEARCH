@@ -19,6 +19,7 @@ validation, best-checkpoint restore at the end.
 
 import sys
 import time
+from collections import deque
 
 import numpy as np
 import torch
@@ -86,6 +87,7 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
         t0 = time.perf_counter()
         perm = torch.randperm(n, generator=g).to(X_train.device)
         run_loss, run_corr, seen, gnorm = 0.0, 0, 0, 0.0
+        win = deque(maxlen=50)           # sliding window: recent model
         it = range(n_batches)
         if log_style == "tqdm":
             bar = _tqdm(it, desc=f"epoch {epoch}/{epochs}", ncols=78,
@@ -100,27 +102,36 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
             gnorm = float(sum((p.grad ** 2).sum()
                               for p in model.parameters()) ** 0.5)
             opt.step()
+            corr = int((logits.argmax(1) == y_train[idx]).sum())
             run_loss += loss.item() * len(idx)
-            run_corr += int((logits.argmax(1) == y_train[idx]).sum())
+            run_corr += corr
             seen += len(idx)
+            win.append((loss.item() * len(idx), corr, len(idx)))
             if log_style == "tqdm" and b % 20 == 0:
                 bar.set_postfix(loss=f"{run_loss / seen:.3f}",
                                 acc=f"{run_corr / seen:.3f}")
             elif log_style == "delta" and tty \
                     and (b % 20 == 0 or b == n_batches - 1):
-                # the bar tracks THIS epoch's batches, live
+                # bar = THIS epoch's batches; stats = the last <=50
+                # batches only, so they track the CURRENT model (a
+                # single batch would be quantized to 1/batch steps)
+                wn = sum(w[2] for w in win)
                 fill = round(22 * (b + 1) / n_batches)
                 print(f"\repoch {epoch:>2}/{epochs} "
                       f"[{'=' * fill}>{'-' * (22 - fill)}] "
-                      f"{b + 1:>5,}/{n_batches:,} | "
-                      f"loss {run_loss / seen:.3f} | "
-                      f"acc {run_corr / seen:6.2%}",
+                      f"{b + 1:>5,}/{n_batches:,} | last50b "
+                      f"loss {sum(w[0] for w in win) / wn:.3f} "
+                      f"acc {sum(w[1] for w in win) / wn:6.2%}",
                       end="", flush=True)
         if bar is not None:
             bar.close()
 
         dt = time.perf_counter() - t0
-        tr_loss = run_loss / seen
+        # epoch-end: re-evaluate the FULL train set with the finished
+        # weights in eval mode — so tr-* and val-* mean the same thing
+        # (the running average mixes the evolving model and reads low
+        # early / high late; this is the clean number)
+        tr_loss, tr_acc = evaluate(model, loss_fn, X_train, y_train)
         val_loss, val_acc = evaluate(model, loss_fn, X_val, y_val)
         if sched is not None:
             sched.step(val_loss) if scheduler == "plateau" \
@@ -141,9 +152,10 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
             if tty:
                 print("\r" + " " * 78 + "\r", end="")   # clear live bar
             print(f"epoch {epoch:>2}/{epochs} [{'=' * 22}>] "
-                  f"train {tr_loss:.3f} ({d('t', tr_loss):+.3f}) | "
-                  f"val {val_loss:.3f} ({d('v', val_loss):+.3f}) | "
-                  f"acc {val_acc:6.2%} ({d('a', val_acc):+.2%})"
+                  f"tr-loss {tr_loss:.3f} ({d('t', tr_loss):+.3f}) "
+                  f"tr-acc {tr_acc:6.2%} | "
+                  f"val-loss {val_loss:.3f} ({d('v', val_loss):+.3f}) "
+                  f"val-acc {val_acc:6.2%} ({d('a', val_acc):+.2%})"
                   f"{' *best' if is_best else '      '} | "
                   f"lr {cur_lr:.0e} | {dt:4.1f}s | eta {eta:3.0f}s")
         elif log_style == "card":
@@ -176,3 +188,60 @@ def fit(model, loss_fn, X_train, y_train, X_val, y_val, *,
     print(f"best: val acc {best_acc:.2%} @ epoch {best_epoch} "
           f"({epochs} run, {total:.1f}s) - weights restored")
     return history
+
+
+def test_report(model, loss_fn, X_test, y_test, class_names=None,
+                top_confusions=5):
+    """The final exam, printed for reading: headline statistics, the
+    per-class table, the worst confusions, and the confusion matrix.
+    Call ONCE, at the very end - the test set is not a dial."""
+    from sklearn.metrics import (classification_report,
+                                 confusion_matrix,
+                                 precision_recall_fscore_support)
+    n = len(y_test)
+    K = int(y_test.max().item()) + 1
+    names = class_names or [str(k) for k in range(K)]
+    loss, acc = evaluate(model, loss_fn, X_test, y_test)
+    model.eval()
+    probs = []
+    with torch.no_grad():
+        for i in range(0, n, 1024):
+            probs.append(torch.softmax(model(X_test[i:i + 1024]),
+                                       dim=1).cpu())
+    P = torch.cat(probs).numpy()
+    y_true = y_test.cpu().numpy()
+    y_pred = P.argmax(axis=1)
+    conf = P.max(axis=1)
+    right = y_pred == y_true
+    prec, rec, f1, _ = precision_recall_fscore_support(
+        y_true, y_pred, average="macro", zero_division=0)
+
+    bar = "=" * 70
+    print(bar)
+    print(f" TEST REPORT - {n:,} samples")
+    print(bar)
+    print(f" loss {loss:.4f}    accuracy {acc:.2%}")
+    print(f" macro: precision {prec:.2%}   recall {rec:.2%}   "
+          f"F1 {f1:.2%}")
+    print(f" confidence: correct {conf[right].mean():.3f} | "
+          f"wrong {conf[~right].mean():.3f}")
+    print(f"\n PER CLASS " + "-" * 59)
+    print(classification_report(y_true, y_pred, digits=3,
+                                target_names=names, zero_division=0))
+    C = confusion_matrix(y_true, y_pred)
+    off = C - np.diag(np.diag(C))
+    pairs = np.dstack(np.unravel_index(
+        np.argsort(off, axis=None)[::-1], C.shape))[0][:top_confusions]
+    print(f" WORST CONFUSIONS " + "-" * 52)
+    for t, p in pairs:
+        print(f"   true '{names[t]}' read as '{names[p]}': "
+              f"{C[t, p]:>4}  ({C[t, p] / C[t].sum():.1%} of all "
+              f"'{names[t]}')")
+    print(f"\n CONFUSION MATRIX (rows = truth, columns = prediction)")
+    w = max(5, max(len(s) for s in names) + 1)
+    print(" " * (w + 1) + "".join(f"{s:>{w}}" for s in names))
+    for t in range(K):
+        print(f"{names[t]:>{w}} " + "".join(f"{C[t, p]:>{w}}"
+                                            for p in range(K)))
+    print(bar)
+    return loss, acc
