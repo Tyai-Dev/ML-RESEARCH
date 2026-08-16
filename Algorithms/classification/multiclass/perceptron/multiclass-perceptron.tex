@@ -1,0 +1,105 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+\usepackage[margin=1.1in]{geometry}
+\usepackage{booktabs}
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}{Corollary}
+\theoremstyle{remark}
+\newtheorem{remark}{Remark}
+
+\title{The Multiclass Perceptron and the Kesler Construction}
+\author{Yuval Lavie}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+The promote/demote multiclass perceptron, and the theorem that makes
+it a special case of the binary one: Kesler's construction embeds the
+$K \times d$ weight matrix as a single vector acting on joint
+features, under which the multiclass update \emph{is} the binary
+update. Novikoff's mistake bound transfers verbatim. Both the
+identity and the bound are verified by
+\texttt{multiclass\_perceptron.py}.
+\end{abstract}
+
+\section{The algorithm}
+
+Weights $W \in \mathbb{R}^{K \times d}$; prediction
+$\hat y(x) = \arg\max_k \langle W_k, x\rangle$. Online, upon a
+mistake ($\hat y \ne y$):
+\begin{equation}
+  W_{y} \leftarrow W_{y} + x, \qquad
+  W_{\hat y} \leftarrow W_{\hat y} - x
+  \label{eq:update}
+\end{equation}
+--- promote the true class's row, demote the offending one; correct
+predictions change nothing (mistake-driven, distribution-free: no
+model of $p(x)$ anywhere).
+
+\section{The Kesler construction}
+
+Define joint features $\Phi(x, k) \in \mathbb{R}^{Kd}$ by placing $x$
+in the $k$-th block and zeros elsewhere, and let
+$w \in \mathbb{R}^{Kd}$ be $W$ read row-wise.
+
+\begin{theorem}[Multiclass is binary]
+\label{thm:kesler}
+For all $x, k$: $\langle W_k, x\rangle = \langle w, \Phi(x,k)\rangle$,
+and the update \eqref{eq:update} equals the binary perceptron update
+\begin{equation}
+  w \;\leftarrow\; w + \Phi(x, y) - \Phi(x, \hat y).
+  \label{eq:kesler}
+\end{equation}
+Consequently the two algorithms, run on the same example sequence,
+produce identical mistake sequences and identical weights.
+\end{theorem}
+
+\begin{proof}
+The score identity is immediate from the block structure. For the
+update: $\Phi(x,y) - \Phi(x,\hat y)$ has $+x$ in block $y$, $-x$ in
+block $\hat y$, zeros elsewhere --- exactly \eqref{eq:update} read
+row-wise. Identical scores and identical updates imply identical
+trajectories by induction over the sequence.
+\end{proof}
+
+\begin{corollary}[Novikoff, lifted]
+If some $W^*$ separates the data with joint-feature margin
+$\gamma = \min_i \min_{k \ne y_i}
+\langle w^*, \Phi(x_i,y_i) - \Phi(x_i,k)\rangle / \|w^*\|$ and
+$R^2 = \max_i \|\Phi(x_i,y_i) - \Phi(x_i,k)\|^2 = 2\max_i\|x_i\|^2$,
+then the number of mistakes is at most $(R/\gamma)^2$
+(Algorithms/classification/binary/perceptron for the binary proof,
+which applies unchanged to \eqref{eq:kesler}).
+\end{corollary}
+
+\section{Numerical verification}
+
+Three separated Gaussian classes in the plane, $700$ training points
+(seed 7):
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Claim & Reference & Measured\\
+\midrule
+Matrix vs.\ Kesler mistake sequences & Thm.~\ref{thm:kesler}
+  & identical (3 mistakes)\\
+Matrix vs.\ Kesler weights & Thm.~\ref{thm:kesler} & equal
+  (allclose)\\
+Mistakes $\le (R/\gamma)^2$ & Cor.~1 & $3 \le 748$\\
+Held-out accuracy & --- & $1.000$ ($n = 200$)\\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{remark}
+The bound's slack ($3$ vs.\ $748$) is typical: Novikoff is
+worst-case over all separable sequences. The construction, not the
+bound, is the point --- every binary mistake-bound theorem lifts to
+multiclass through $\Phi$, which is also how multiclass PA and the
+Crammer--Singer SVM are obtained in the sibling folders.
+\end{remark}
+
+\end{document}
