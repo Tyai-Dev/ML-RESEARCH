@@ -29,3 +29,6 @@ Generative/text-to-text/data/soda_chat.txt
 
 # secrets
 .env
+
+# downloaded datasets
+datasets/cifar10/
