@@ -11,6 +11,7 @@ site/out/
 
 # downloaded datasets (auto-fetched on first use)
 datasets/mnist/
+datasets/kmnist/
 
 # large generated corpora (rebuild: Generative/text-to-text/data/prepare_datasets.py)
 Generative/text-to-text/data/tinystories*.txt

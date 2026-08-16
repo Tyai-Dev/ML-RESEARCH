@@ -26,14 +26,21 @@ from pathlib import Path
 
 import numpy as np
 
-_DIR = Path(__file__).resolve().parent / "mnist"
-_URL = "https://ossci-datasets.s3.amazonaws.com/mnist/"
+_ROOT = Path(__file__).resolve().parent
+# every dataset here ships the SAME four IDX files - the format
+# outlived the digits (kmnist: cursive Kuzushiji hiragana, 10 classes)
+_SOURCES = {
+    "mnist": "https://ossci-datasets.s3.amazonaws.com/mnist/",
+    "kmnist": "https://codh.rois.ac.jp/kmnist/dataset/kmnist/",
+}
 _FILES = {
     "train_x": "train-images-idx3-ubyte.gz",
     "train_y": "train-labels-idx1-ubyte.gz",
     "test_x": "t10k-images-idx3-ubyte.gz",
     "test_y": "t10k-labels-idx1-ubyte.gz",
 }
+KMNIST_CLASSES = ["o", "ki", "su", "tsu", "na",
+                  "ha", "ma", "ya", "re", "wo"]   # romanized hiragana
 
 
 def _parse_idx(raw: bytes) -> np.ndarray:
@@ -46,18 +53,25 @@ def _parse_idx(raw: bytes) -> np.ndarray:
                          offset=4 + 4 * rank).reshape(dims)
 
 
-def load_mnist():
-    """(X_train (60000, 784) in [0,1], y_train, X_test, y_test),
-    downloading and caching on first call."""
-    cache = _DIR / "mnist.npz"
+def load_mnist(dataset: str = "mnist"):
+    """(X_train (60000, 784) in [0,1], y_train, X_test, y_test) for
+    'mnist' or 'kmnist', downloading and caching on first call."""
+    base = _SOURCES[dataset]
+    _DIR = _ROOT / dataset
+    cache = _DIR / f"{dataset}.npz"
     if not cache.exists():
         _DIR.mkdir(parents=True, exist_ok=True)
         arrays = {}
         for key, fname in _FILES.items():
             path = _DIR / fname
             if not path.exists():
-                print(f"downloading {fname} ...")
-                urllib.request.urlretrieve(_URL + fname, path)
+                print(f"downloading {dataset}/{fname} ...")
+                import ssl
+                import certifi
+                ctx = ssl.create_default_context(cafile=certifi.where())
+                with urllib.request.urlopen(base + fname,
+                                            context=ctx) as r:
+                    path.write_bytes(r.read())
             arrays[key] = _parse_idx(gzip.decompress(path.read_bytes()))
         np.savez_compressed(cache, **arrays)
     z = np.load(cache)
