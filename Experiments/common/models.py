@@ -64,6 +64,45 @@ class MLP(nn.Module):
         return self.net(x)
 
 
+class CNN(nn.Module):
+    """The convolutional member — built for exactly the failure the
+    CIFAR MLP exposed (tr-acc 83% / val-acc 59%): fully-connected
+    layers give every pixel position its own weights, so a cat shifted
+    three pixels is a new cat. Convolution SHARES weights across
+    positions (one cat-ear detector, applied everywhere), sees local
+    patches (shape lives locally), and pooling buys translation
+    tolerance.
+
+    Three stages of [Conv-BN-ReLU, Conv-BN-ReLU, MaxPool], widening
+    64 -> 128 -> 256 channels while halving resolution, then global
+    average pooling and a linear head (~1.2M params). Input arrives
+    flat (the pipeline contract); the forward reshapes to (C, H, W).
+    Works for (3,32,32) CIFAR and (1,28,28) MNIST-likes alike."""
+
+    def __init__(self, in_shape=(3, 32, 32), n_classes: int = 10,
+                 dropout: float = 0.3):
+        super().__init__()
+        self.in_shape = in_shape
+
+        def block(c_in, c_out):
+            return [nn.Conv2d(c_in, c_out, 3, padding=1),
+                    nn.BatchNorm2d(c_out), nn.ReLU()]
+
+        chans = [in_shape[0], 64, 128, 256]
+        stages = []
+        for a, b in zip(chans[:-1], chans[1:]):
+            stages += block(a, b) + block(b, b) + [nn.MaxPool2d(2)]
+        self.features = nn.Sequential(*stages)
+        self.head = nn.Sequential(nn.AdaptiveAvgPool2d(1),
+                                  nn.Flatten(),
+                                  nn.Dropout(dropout),
+                                  nn.Linear(chans[-1], n_classes))
+
+    def forward(self, x):                    # (B, C*H*W) flat
+        x = x.view(-1, *self.in_shape)
+        return self.head(self.features(x))
+
+
 def describe(model: nn.Module) -> str:
     n = sum(p.numel() for p in model.parameters())
     return f"{type(model).__name__} ({n:,} params)"

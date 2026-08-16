@@ -25,7 +25,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "datasets"))
 sys.path.insert(0, str(ROOT / "Experiments" / "common"))
 from cifar10 import CIFAR10_CLASSES, load_cifar10  # noqa: E402
-from models import MLP, SoftmaxRegression          # noqa: E402
+from models import CNN                             # noqa: E402
 from training import SEED, fit, test_report        # noqa: E402
 
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -63,28 +63,19 @@ fig_ex.suptitle("2. LOOK — sixteen CIFAR-10 examples", fontsize=11)
 fig_ex.tight_layout()
 
 # 3. TRAIN --------------------------------------------------------------
-print("\n3. TRAIN — the linear floor first")
-lin = SoftmaxRegression(d_in=3072).to(DEVICE)
-fit(lin, nn.CrossEntropyLoss(), X_train, y_train, X_val, y_val,
-    epochs=12, log_style="quiet")
-
-print("\n3b. TRAIN — the MLP")
-model = MLP(d_in=3072, hidden=(1024, 512, 256)).to(DEVICE)
+# floors already on record: linear 40.21%, MLP 58.64% (tr-acc 83% vs
+# val 59% - position-rigid weights memorize; convolution is the fix)
+print("\n3. TRAIN — the CNN")
+model = CNN(in_shape=(3, 32, 32)).to(DEVICE)
 history = fit(model, nn.CrossEntropyLoss(), X_train, y_train,
               X_val, y_val, epochs=30, batch=128, lr=1e-3)
 
 # 4. EXAMINE ------------------------------------------------------------
 print("\n4. EXAMINE (test set, first and only touch)")
-print("linear floor:")
-lin_loss, lin_acc = test_report(lin, nn.CrossEntropyLoss(),
-                                X_test, y_test, NAMES,
-                                top_confusions=3)
-print("\nMLP:")
 test_loss, test_acc = test_report(model, nn.CrossEntropyLoss(),
                                   X_test, y_test, NAMES)
-print(f"\nladder: linear {lin_acc:.2%} -> MLP {test_acc:.2%} "
-      f"(modern CNNs ~95%: that gap is convolution)")
-assert lin_acc > 0.30 and test_acc > lin_acc
+print(f"\nladder: linear 40.21% -> MLP 58.64% -> CNN {test_acc:.2%}")
+assert test_acc > 0.5864, "convolution must beat the MLP floor"
 
 # figures: hardest mistakes ---------------------------------------------
 with torch.no_grad():
