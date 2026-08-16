@@ -40,6 +40,14 @@ in its script passes.
 | `passive-aggressive/` | Online learning as per-step optimization: min ‖w−w_t‖² s.t. hinge = 0, closed form via KKT (verified vs brute force); PA-I/PA-II noise robustness raced; multiclass PA |
 | `svm/` | Margin maximization: hard margin from geometry, KKT ⇒ support vectors (dropping 1324 non-SVs moves w by 0.0000; dropping 176 SVs by 0.25), soft margin = hinge + L2, Pegasos, logistic comparison, kernel remark |
 
+## MNIST classifier (real images, torch, model zoo)
+
+| File | Role |
+|---|---|
+| `mnist-classifier/models.py` | The zoo, smallest first: `SoftmaxRegression` (784→10 linear, 7.9k params) — the floor every later model must beat on the same splits |
+| `mnist-classifier/training.py` | The generic engine: `fit(model, loss_fn, ...)` — model and loss are arguments; quarter-epoch running stats, per-epoch val + best-checkpoint restore, seeded batches |
+| `mnist-classifier/mnist_softmax.py` | The pipeline: LOAD (55k/5k/10k) → LOOK (examples + balance) → TRAIN → EXAMINE (10-class sklearn report, confusion matrix + worst pairs, confidence/calibration, the 10 learned templates as images, most confident mistakes). Linear floor: **92.74%** test |
+
 ## LLM track
 
 Building an LLM by hand in raw PyTorch (design:
